@@ -251,11 +251,13 @@ details.more[open] > summary { margin-bottom: 8px }
 <body>
 <header class="appbar">
   <div class="bar gut">
-    <div class="brand"><svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--accent)"/><path d="M6 10l7-3 6 3 7-3v15l-7 3-6-3-7 3z" fill="none" stroke="var(--accent-ink)" stroke-width="2" stroke-linejoin="round"/><circle cx="19" cy="14" r="2.6" fill="#F2A900"/></svg><span>OSINT Map Builder <small>v2.0</small></span></div>
+    <div class="brand"><svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--accent)"/><path d="M6 10l7-3 6 3 7-3v15l-7 3-6-3-7 3z" fill="none" stroke="var(--accent-ink)" stroke-width="2" stroke-linejoin="round"/><circle cx="19" cy="14" r="2.6" fill="#F2A900"/></svg><span>OSINT Map Builder <small>v2.1</small></span></div>
     <details class="menu" id="fileMenu"><summary class="btn">File</summary><div class="menu-pop" role="menu">
       <button data-act="new">New map</button>
       <button data-act="open">Open a file…<small>A map, a CSV, GeoJSON, or a Citation Generator source list</small></button>
       <button data-act="example">Open the example<small>D-Day, 6 June 1944</small></button>
+      <button data-act="scan">Add a scanned map…<small>An old map from a file or a link, stretched onto the ground</small></button>
+      <button data-act="borders">Add historical borders…<small>Any of 54 moments from 123,000 BCE to 2010</small></button>
       <hr>
       <button data-act="save">Save map (.json)<small>Everything: features, layers, sources, layout</small></button>
       <button data-act="sources">Export source list (.json)<small>Opens in the OSINT Citation Generator</small></button>
@@ -294,7 +296,8 @@ details.more[open] > summary { margin-bottom: 8px }
     <div class="spane" id="spane"></div>
   </aside>
 </main>
-<input type="file" id="fileIn" accept=".json,.geojson,.csv,.tsv,.txt,application/json,text/csv" hidden>
+<input type="file" id="fileIn" accept=".json,.geojson,.csv,.tsv,.txt,application/json,text/csv,image/png,image/jpeg,image/webp" hidden>
+<input type="file" id="imgIn" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
 <div id="exportHost" aria-hidden="true"></div>
 <script id="vendor-maplibre">/* MapLibre GL JS 5.24.0 (c) MapLibre contributors, BSD-3-Clause, https://github.com/maplibre/maplibre-gl-js */
 /**
@@ -4513,8 +4516,8 @@ var MAPC = (function () {
   'use strict';
   var FORMAT = 2;
   var REF_W = 1000; // every size on the map is set for a frame 1000 px wide, then scaled with the frame
-  var KINDS = ['point', 'symbol', 'label', 'line', 'arrow', 'area', 'ring'];
-  var KIND_NAMES = { point: 'Marker', symbol: 'Military symbol', label: 'Text', line: 'Line', arrow: 'Bold arrow', area: 'Area', ring: 'Range ring' };
+  var KINDS = ['point', 'symbol', 'label', 'line', 'arrow', 'area', 'ring', 'image'];
+  var KIND_NAMES = { point: 'Marker', symbol: 'Military symbol', label: 'Text', line: 'Line', arrow: 'Bold arrow', area: 'Area', ring: 'Range ring', image: 'Scanned map' };
   var MARKERS = [['circle', 'Circle'], ['square', 'Square'], ['triangle', 'Triangle'], ['diamond', 'Diamond'], ['star', 'Star'], ['cross', 'Cross'], ['pin', 'Pin'], ['burst', 'Strike burst'], ['dot', 'Small dot']];
   var COLORS = [['#2F6FDE', 'Blue'], ['#D7263D', 'Red'], ['#F2A900', 'Amber'], ['#1E9E5A', 'Green'], ['#7A4FD6', 'Purple'], ['#F26B1D', 'Orange'], ['#14A3B8', 'Teal'], ['#FFFFFF', 'White'], ['#1B1F24', 'Black'], ['#8A96A3', 'Gray']];
   var AFFIL = [['F', 'Friend'], ['H', 'Hostile'], ['N', 'Neutral'], ['U', 'Unknown'], ['S', 'Suspect'], ['A', 'Assumed friend'], ['P', 'Pending']];
@@ -4523,6 +4526,7 @@ var MAPC = (function () {
   var ECHELON = [['-', 'None'], ['A', 'Team / crew'], ['B', 'Squad'], ['C', 'Section'], ['D', 'Platoon / detachment'], ['E', 'Company / battery / troop'], ['F', 'Battalion / squadron'], ['G', 'Regiment / group'], ['H', 'Brigade'], ['I', 'Division'], ['J', 'Corps / MEF'], ['K', 'Army'], ['L', 'Army group / front'], ['M', 'Region / theater'], ['N', 'Command']];
   var HQTF = [['-', 'None'], ['A', 'Headquarters'], ['E', 'Task force'], ['B', 'Task force headquarters'], ['F', 'Feint / dummy'], ['C', 'Feint / dummy headquarters'], ['G', 'Feint / dummy task force'], ['D', 'Feint / dummy task force headquarters']];
   var DASHES = [['solid', 'Solid'], ['dash', 'Dashed'], ['dot', 'Dotted']];
+  var EDGES = [['line', 'Line'], ['band', 'Atlas band (a wide inner edge)'], ['soft', 'Soft (for approximate borders)']];
   var PRESETS = [
     ['substack-wide', 'Substack post, 16:9', 1456, 819], ['substack-inline', 'Substack post, 4:3', 1456, 1092], ['substack-tall', 'Substack post, 4:5', 1456, 1820],
     ['video-1080', 'Video, 1080p', 1920, 1080], ['video-4k', 'Video, 4K', 3840, 2160], ['vertical', 'Vertical 9:16 (Shorts, Reels)', 1080, 1920],
@@ -4648,6 +4652,8 @@ var MAPC = (function () {
     if (Math.abs(a) < 1e-9) { var bb = bbox([ring]); return [(bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2]; }
     return unmerc([x / (3 * a), y / (3 * a)]);
   }
+  // Signed area of a ring in Web Mercator: positive when it runs counterclockwise as seen on the map.
+  function ringArea(r) { var P2 = r.map(merc), a = 0; for (var i = 0; i < P2.length - 1; i++) a += P2[i][0] * P2[i + 1][1] - P2[i + 1][0] * P2[i][1]; return a / 2; }
   function closeRing(cs) { var r = cs.slice(); if (r.length && (r[0][0] !== r[r.length - 1][0] || r[0][1] !== r[r.length - 1][1])) r.push(r[0].slice()); return r; }
   // A bold arrow (axis of advance) built around a path. widthKm is the shaft width at the head; the tail narrows to `tail` times that.
   function boldArrow(cs, widthKm, o) {
@@ -4699,10 +4705,19 @@ var MAPC = (function () {
   var MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
   var MON_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   function monthOf(w) { w = String(w || '').toLowerCase().replace(/\.$/, ''); if (w.length < 3) return 0; for (var i = 0; i < 12; i++) if (MONTHS[i].indexOf(w) === 0) return i + 1; return 0; }
-  // Reads a date with an optional time of day. Returns { t: milliseconds (UTC), prec: 'year' | 'month' | 'day' | 'minute' } or null.
+  function daysIn(y, mo) { var d = new Date(Date.UTC(2000, mo, 0)); d.setUTCFullYear(y, mo, 0); return d.getUTCDate(); }
+  var ERA_BC = /^(?:B\.?\s?C\.?(?:\s?E\.?)?|BCE)$/i, ERA_AD = /^(?:A\.?\s?D\.?|C\.?\s?E\.?)$/i;
+  // Reads a date with an optional time of day. Years before the common era are written 44 BC, 500 BCE, or in ISO form -0499 (astronomical: -0499 is 500 BCE).
+  // "c.", "ca." or "circa" marks a date as approximate. Dates are taken as written: there is no Julian-to-Gregorian conversion.
+  // Returns { t: milliseconds (UTC, proleptic Gregorian), prec: 'year' | 'month' | 'day' | 'minute', approx } or null.
   function parseWhen(raw) {
-    var s = clean(raw).replace(/,/g, ' ').replace(/\s+/g, ' ').trim(), m, y, mo = 0, d = 0, hh = null, mm = 0;
+    var s = clean(raw).replace(/,/g, ' ').replace(/\s+/g, ' ').trim(), m, y, mo = 0, d = 0, hh = null, mm = 0, approx = false, bc = false, ad = false;
     if (!s) return null;
+    if ((m = s.match(/^(?:c\.|ca\.?|circa|c(?=\s))\s*/i))) { approx = true; s = s.slice(m[0].length).trim(); }
+    if ((m = s.match(/\s*\b(B\.?\s?C\.?(?:\s?E\.?)?|BCE)$/i))) { bc = true; s = s.slice(0, m.index).trim(); }
+    else if ((m = s.match(/\s*\b(A\.?\s?D\.?|C\.?\s?E\.?)$/i)) && /\d/.test(s.slice(0, m.index))) { ad = true; s = s.slice(0, m.index).trim(); }
+    if (!bc && (m = s.match(/^(A\.?\s?D\.?)\s+/i))) { ad = true; s = s.slice(m[0].length).trim(); }
+    void ERA_BC; void ERA_AD;
     var tm = s.match(/(?:^|\s|T)(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?\s*(z|utc|gmt)?$/i), mil = false;
     if (!tm) { tm = s.match(/\s(\d{2})(\d{2})\s*(z|hrs?|h)?$/i); mil = !!tm; }
     if (tm) {
@@ -4710,29 +4725,61 @@ var MAPC = (function () {
       if (mil) { var r0 = parseWhen(rest); if (!r0 || r0.prec !== 'day') tm = null; }
       if (tm) { hh = +tm[1]; mm = +tm[2]; s = rest; if (hh > 23 || mm > 59) return null; }
     }
-    if ((m = s.match(/^(\d{4})(?:-(\d{1,2})(?:-(\d{1,2}))?)?$/))) { y = +m[1]; mo = +(m[2] || 0); d = +(m[3] || 0); }
+    var neg = false;
+    if (!bc && !ad && (m = s.match(/^-(\d{1,6})(?:-(\d{1,2})(?:-(\d{1,2}))?)?$/))) { neg = true; y = -m[1]; mo = +(m[2] || 0); d = +(m[3] || 0); }
+    else if ((m = s.match(/^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?$/))) { y = +m[1]; mo = +m[2]; d = +(m[3] || 0); }
+    else if ((m = s.match(/^(\d{1,6})$/)) && (bc || ad || m[1].length >= 3)) { y = +m[1]; }
     else if ((m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/))) { y = +m[3]; mo = +m[1]; d = +m[2]; }
     else {
       var p = s.split(' ');
-      if (p.length === 3 && /^\d{1,2}$/.test(p[0]) && monthOf(p[1]) && /^\d{4}$/.test(p[2])) { d = +p[0]; mo = monthOf(p[1]); y = +p[2]; }
-      else if (p.length === 3 && monthOf(p[0]) && /^\d{1,2}$/.test(p[1]) && /^\d{4}$/.test(p[2])) { mo = monthOf(p[0]); d = +p[1]; y = +p[2]; }
-      else if (p.length === 2 && monthOf(p[0]) && /^\d{4}$/.test(p[1])) { mo = monthOf(p[0]); y = +p[1]; }
+      if (p.length === 3 && /^\d{1,2}$/.test(p[0]) && monthOf(p[1]) && /^\d{1,6}$/.test(p[2])) { d = +p[0]; mo = monthOf(p[1]); y = +p[2]; }
+      else if (p.length === 3 && monthOf(p[0]) && /^\d{1,2}$/.test(p[1]) && /^\d{1,6}$/.test(p[2])) { mo = monthOf(p[0]); d = +p[1]; y = +p[2]; }
+      else if (p.length === 2 && monthOf(p[0]) && /^\d{1,6}$/.test(p[1])) { mo = monthOf(p[0]); y = +p[1]; }
       else return null;
+      if (!bc && !ad && String(y).length < 3) return null;
     }
-    if (!(y >= 1 && y <= 9999) || (mo && (mo < 1 || mo > 12))) return null;
-    if (d && (d < 1 || d > new Date(Date.UTC(y, mo, 0)).getUTCDate())) return null;
+    if (bc) { if (y < 1) return null; y = 1 - y; }
+    else if (!neg && y < 1) return null;
+    if (Math.abs(y) > 200000 || (mo && (mo < 1 || mo > 12))) return null;
+    if (d && (d < 1 || d > daysIn(y, mo))) return null;
     if (hh != null && !d) return null;
     var dt = new Date(Date.UTC(2000, (mo || 1) - 1, d || 1, hh || 0, mm)); dt.setUTCFullYear(y);
-    return { t: dt.getTime(), prec: hh != null ? 'minute' : d ? 'day' : mo ? 'month' : 'year' };
+    return { t: dt.getTime(), prec: hh != null ? 'minute' : d ? 'day' : mo ? 'month' : 'year', approx: approx };
   }
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
-  function fmtWhen(t, prec) {
+  // A year in astronomical numbering (0 is 1 BCE) as people write it.
+  function yearText(y, era) { return y <= 0 ? (1 - y) + (era === 'BC' ? ' BC' : ' BCE') : y < 1000 ? (era === 'BC' ? 'AD ' + y : y + ' CE') : String(y); }
+  function fmtWhen(t, prec, era, approx) {
     if (t == null || !isFinite(t)) return '';
-    var d = new Date(t), y = d.getUTCFullYear(), mo = MON_FULL[d.getUTCMonth()], day = d.getUTCDate();
-    if (prec === 'year') return String(y);
-    if (prec === 'month') return mo + ' ' + y;
-    var s = day + ' ' + mo + ' ' + y;
-    return prec === 'minute' ? s + ', ' + pad2(d.getUTCHours()) + ':' + pad2(d.getUTCMinutes()) : s;
+    var d = new Date(t), y = yearText(d.getUTCFullYear(), era), mo = MON_FULL[d.getUTCMonth()], day = d.getUTCDate(), out;
+    if (prec === 'year') out = y;
+    else if (prec === 'month') out = mo + ' ' + y;
+    else { out = day + ' ' + mo + ' ' + y; if (prec === 'minute') out += ', ' + pad2(d.getUTCHours()) + ':' + pad2(d.getUTCMinutes()); }
+    return (approx ? 'c. ' : '') + out;
+  }
+  // The start of the calendar unit containing t (unit: 'year', 'month', 'day').
+  function unitStart(t, unit) {
+    var d = new Date(t);
+    if (unit === 'year') { var y = d.getUTCFullYear(); d = new Date(Date.UTC(2000, 0, 1)); d.setUTCFullYear(y); return d.getTime(); }
+    if (unit === 'month') { var y2 = d.getUTCFullYear(), m2 = d.getUTCMonth(); d = new Date(Date.UTC(2000, m2, 1)); d.setUTCFullYear(y2); return d.getTime(); }
+    return Math.floor(t / 86400000) * 86400000;
+  }
+  // The precision the time bar can honestly show: never finer than its step.
+  function barPrec(r) {
+    var span = r.max - r.min, Y = 365.2425 * 86400000;
+    if (r.prec === 'year' || span > 300 * Y) return 'year';
+    if (r.prec === 'month' || span > 20 * Y) return 'month';
+    if (r.prec === 'minute' && span > 14 * 86400000) return 'day';
+    return r.prec;
+  }
+  // Rounds a slider time to a step that suits the data: minutes or hours for timed events, days, months, or years.
+  function snapTime(t, r) {
+    var span = r.max - r.min, Y = 365.2425 * 86400000, v;
+    if (r.prec === 'minute' && span <= 14 * 86400000) { var step = span <= 2 * 86400000 ? 300000 : 3600000; v = Math.round(t / step) * step; }
+    else if (r.prec === 'year' || span > 300 * Y) v = unitStart(t + Y / 2, 'year');
+    else if (r.prec === 'month' || span > 20 * Y) v = unitStart(t + 15 * 86400000, 'month');
+    else v = Math.round(t / 86400000) * 86400000;
+    return Math.min(r.max, Math.max(r.min, v));
   }
   // The span a feature is shown for. A date without an end lasts until the end of its own precision (that day, that month).
   function spanOf(f) {
@@ -4757,10 +4804,12 @@ var MAPC = (function () {
     if (tm.mode === 'during') return lastOf(sp) >= tm.at;
     return sp.end == null || sp.end >= tm.at;
   }
+  var PREC_RANK = { year: 0, month: 1, day: 2, minute: 3 };
+  // The span of the dated features, and the finest precision any of them uses (the time bar shows dates to that precision).
   function timeRange(p) {
-    var lo = Infinity, hi = -Infinity, n = 0, minute = false;
-    p.features.forEach(function (f) { var sp = spanOf(f); if (!sp) return; n++; if (sp.prec === 'minute') minute = true; lo = Math.min(lo, sp.start); hi = Math.max(hi, sp.end != null ? sp.end : sp.start); });
-    return n ? { min: lo, max: hi, n: n, minute: minute } : null;
+    var lo = Infinity, hi = -Infinity, n = 0, prec = 'year';
+    p.features.forEach(function (f) { var sp = spanOf(f); if (!sp) return; n++; if (PREC_RANK[sp.prec] > PREC_RANK[prec]) prec = sp.prec; lo = Math.min(lo, sp.start); hi = Math.max(hi, sp.end != null ? sp.end : sp.start); });
+    return n ? { min: lo, max: hi, n: n, minute: prec === 'minute', prec: prec } : null;
   }
   function atTime(p, at) { var tm = at === undefined ? p.time : Object.assign({}, p.time, { at: at }); return shown(p).filter(function (f) { return onAt(f, tm); }); }
 
@@ -4895,6 +4944,8 @@ var MAPC = (function () {
     return v;
   }
   var DARK_TONES = { dark: 1, night: 1 };
+  // Basemap layers that show the modern world: roads, buildings, land use, places and borders. 'Physical only' hides them.
+  var MODERN = { transportation: 1, transportation_name: 1, building: 1, poi: 1, aerodrome_label: 1, aeroway: 1, landuse: 1, park: 1, boundary: 1, place: 1, housenumber: 1 };
   // Restyles a downloaded basemap style: tone, label density and borders. Returns a new style object.
   function restyle(style, o) {
     o = o || {}; var tone = o.tone || 'original', s = JSON.parse(JSON.stringify(style));
@@ -4914,6 +4965,8 @@ var MAPC = (function () {
         if (hide) lay.visibility = 'none';
         if (L.type === 'symbol' && DARK_TONES[tone] && lay['icon-image'] && sl !== 'place') lay.visibility = 'none';
       }
+      if (o.modern === 'physical' && MODERN[sl]) { lay.visibility = 'none'; }
+      if (o.modern === 'physical' && (L.id === 'om-borders' || /^(road|bridge|tunnel|highway|building|rail|aeroway|airport|poi|boundary|admin|landuse|park)/.test(L.id || '')) && !/^(water|landcover)/.test(sl)) lay.visibility = 'none';
       if (o.borders && sl === 'boundary' && L.type === 'line') {
         p['line-width'] = scaleWidth(p['line-width'] == null ? 1 : p['line-width'], 2);
         p['line-color'] = DARK_TONES[tone] ? '#B9C6D0' : '#3A4048';
@@ -4930,9 +4983,9 @@ var MAPC = (function () {
       app: 'OSINT Map Builder', format: FORMAT,
       meta: { title: 'Untitled map', dek: '', byline: '', credit: '', date: '', notes: '' },
       view: { center: [15, 50], zoom: 3.2, bearing: 0, pitch: 0 },
-      base: { style: 'liberty', tone: 'muted', labels: 'places', borders: true, relief: false, reliefOpacity: 0.5, imagery: false, imageryOpacity: 1, hillshade: false, hillshadeOpacity: 0.5, customUrl: '', customAttr: '', coords: 'dd' },
+      base: { style: 'liberty', tone: 'muted', labels: 'places', borders: true, relief: false, reliefOpacity: 0.5, imagery: false, imageryOpacity: 1, hillshade: false, hillshadeOpacity: 0.5, customUrl: '', customAttr: '', coords: 'dd', modern: 'all' },
       layout: { preset: 'substack-wide', w: 1456, h: 819, theme: 'dark', title: true, titlePos: 'tl', legend: true, legendPos: 'br', legendTitle: 'Key', symbolKey: true, sources: 'short', markers: true, scale: true, north: true, credit: true, frame: true, textScale: 1, symbolScale: 1, inset: false, insetPos: 'bl', insetSize: 0.2, insetZoom: 8 },
-      time: { mode: 'all', at: null, stamp: true, stampPos: 'tr', play: 10 },
+      time: { mode: 'all', at: null, stamp: true, stampPos: 'tr', play: 10, era: 'BCE' },
       views: [], video: { fps: 30, overlay: true, scale: 1 },
       layers: [blankLayer('l1', 'Layer 1', '#2F6FDE')],
       features: [], sources: [], gaps: []
@@ -4942,13 +4995,16 @@ var MAPC = (function () {
   function coordList(a) {
     return (Array.isArray(a) ? a : []).filter(function (c) { return Array.isArray(c) && c.length >= 2 && isFinite(+c[0]) && isFinite(+c[1]); }).map(function (c) { return [round(+c[0], 7), round(+c[1], 7)]; }).filter(function (c) { return okLL(c[0], c[1]); });
   }
+  // A scanned map's picture: an embedded image (data: URL), a link to one, or a reference to a copy kept in this browser (idb:).
+  function imgRef(v) { return typeof v === 'string' && v.length < 60000000 && (/^data:image\/(png|jpe?g|webp|gif);base64,/i.test(v) || /^https:\/\/[^\s"<>]+$/i.test(v) || /^idb:[\w-]+$/.test(v)) ? v : ''; }
   function normFeature(f, layerIds, fixes, used) {
     if (!f || typeof f !== 'object') return null;
     var kind = pick(f.kind, KINDS, ''), cs = coordList(f.coords || (f.geometry && f.geometry.coordinates));
     if (!kind) { fixes.push('A feature with no kind was dropped.'); return null; }
-    var need = { point: 1, symbol: 1, label: 1, ring: 1, line: 2, arrow: 2, area: 3 }[kind];
+    var need = { point: 1, symbol: 1, label: 1, ring: 1, line: 2, arrow: 2, area: 3, image: 4 }[kind];
     if (cs.length < need) { fixes.push('Feature "' + (clean(f.label) || f.id || '?') + '" had too few points and was dropped.'); return null; }
     if (need === 1) cs = cs.slice(0, 1);
+    if (kind === 'image') cs = cs.slice(0, 4);
     if (kind === 'area' && cs.length > 3 && cs[0][0] === cs[cs.length - 1][0] && cs[0][1] === cs[cs.length - 1][1]) cs = cs.slice(0, -1);
     var id = clean(f.id) || ''; if (!id || used[id]) { id = nextId('f', Object.keys(used)); }
     used[id] = 1;
@@ -4961,14 +5017,16 @@ var MAPC = (function () {
         color: st.color ? hexOf(st.color) : '', marker: pick(st.marker, MARKERS, 'circle'), size: numOr(st.size, 1, 0.3, 4),
         width: numOr(st.width, kind === 'arrow' ? 12 : 3, 0.2, kind === 'arrow' ? 2000 : 40), dash: pick(st.dash, DASHES, 'solid'),
         heads: pick(st.heads, [['none'], ['end'], ['both']], 'none'), fill: numOr(st.fill, kind === 'area' ? 0.25 : kind === 'ring' ? 0.08 : 0.85, 0, 1), hatch: !!st.hatch,
-        outline: st.outline === false ? false : true, smooth: !!st.smooth, labelPos: pick(st.labelPos, [['auto'], ['right'], ['left'], ['top'], ['bottom'], ['center']], 'auto'),
-        labelStyle: pick(st.labelStyle, [['halo'], ['box'], ['plain']], 'halo'), labelSize: numOr(st.labelSize, 1, 0.5, 4), dx: numOr(st.dx, 0, -500, 500), dy: numOr(st.dy, 0, -500, 500)
+        outline: st.outline === false ? false : true, smooth: !!st.smooth, labelPos: pick(st.labelPos, [['auto'], ['right'], ['left'], ['top'], ['bottom'], ['center'], ['none']], 'auto'), edge: pick(st.edge, EDGES, 'line'),
+        opacity: numOr(st.opacity, 0.85, 0, 1), locked: !!st.locked, marks: st.marks !== false, aspect: numOr(st.aspect, 0, 0, 100),
+        labelStyle: pick(st.labelStyle, [['halo'], ['box'], ['plain'], ['region']], 'halo'), labelSize: numOr(st.labelSize, 1, 0.5, 4), dx: numOr(st.dx, 0, -500, 500), dy: numOr(st.dy, 0, -500, 500)
       },
       sym: kind === 'symbol' ? {
         tpl: clean(sy.tpl).toUpperCase().slice(0, 15) || 'S*G*UCI--------', custom: clean(sy.custom).slice(0, 40), affil: pick(sy.affil, AFFIL, 'F'), status: pick(sy.status, STATUS, 'P'),
         ech: pick(sy.ech, ECHELON, '-'), hq: pick(sy.hq, HQTF, '-'), mono: !!sy.mono, unique: str(sy.unique, 60), higher: str(sy.higher, 60), info: str(sy.info, 80), type: str(sy.type, 60),
         reinforced: pick(sy.reinforced, [[''], ['+'], ['-'], ['±']], ''), quantity: str(sy.quantity, 20), direction: sy.direction === '' || sy.direction == null ? '' : String(numOr(sy.direction, 0, 0, 360)), staff: str(sy.staff, 80), key: str(sy.key, 120)
       } : undefined,
+      img: kind === 'image' ? imgRef(f.img) : undefined,
       cites: cites(f.cites), hidden: !!f.hidden
     };
   }
@@ -4985,7 +5043,7 @@ var MAPC = (function () {
     var bs = raw.base || {};
     p.base = { style: pick(bs.style, [['liberty'], ['positron'], ['bright'], ['dark'], ['fiord'], ['outline'], ['custom']], 'liberty'), tone: pick(bs.tone, TONES, 'original'), labels: pick(bs.labels, [['all'], ['places'], ['major'], ['none']], 'all'), borders: !!bs.borders,
       relief: !!bs.relief, reliefOpacity: numOr(bs.reliefOpacity, 0.5, 0, 1), imagery: !!bs.imagery, imageryOpacity: numOr(bs.imageryOpacity, 1, 0, 1), hillshade: !!bs.hillshade, hillshadeOpacity: numOr(bs.hillshadeOpacity, 0.5, 0, 1),
-      customUrl: str(bs.customUrl, 1000).trim(), customAttr: str(bs.customAttr, 400), coords: pick(bs.coords, [['dd'], ['dms'], ['mgrs']], 'dd') };
+      customUrl: str(bs.customUrl, 1000).trim(), customAttr: str(bs.customAttr, 400), coords: pick(bs.coords, [['dd'], ['dms'], ['mgrs']], 'dd'), modern: pick(bs.modern, [['all'], ['physical']], 'all') };
     var lo = raw.layout || {}, d = b.layout;
     p.layout = { preset: pick(lo.preset, PRESETS, d.preset), w: Math.round(numOr(lo.w, d.w, 200, 8000)), h: Math.round(numOr(lo.h, d.h, 200, 8000)), theme: pick(lo.theme, [['dark'], ['light']], 'dark'),
       title: lo.title !== false, titlePos: pick(lo.titlePos, CORNERS, 'tl'), legend: lo.legend !== false, legendPos: pick(lo.legendPos, CORNERS, 'br'), legendTitle: lo.legendTitle == null ? 'Key' : str(lo.legendTitle, 80), symbolKey: lo.symbolKey !== false,
@@ -4993,7 +5051,7 @@ var MAPC = (function () {
       textScale: numOr(lo.textScale, 1, 0.5, 2.5), symbolScale: numOr(lo.symbolScale, 1, 0.3, 3),
       inset: !!lo.inset, insetPos: pick(lo.insetPos, CORNERS, 'bl'), insetSize: numOr(lo.insetSize, 0.2, 0.1, 0.4), insetZoom: numOr(lo.insetZoom, 8, 2, 256) };
     var tm = raw.time || {};
-    p.time = { mode: pick(tm.mode, [['all'], ['upto'], ['during']], 'all'), at: tm.at == null || !isFinite(+tm.at) ? null : +tm.at, stamp: tm.stamp !== false, stampPos: pick(tm.stampPos, CORNERS, 'tr'), play: numOr(tm.play, 10, 2, 120) };
+    p.time = { mode: pick(tm.mode, [['all'], ['upto'], ['during']], 'all'), at: tm.at == null || !isFinite(+tm.at) ? null : +tm.at, stamp: tm.stamp !== false, stampPos: pick(tm.stampPos, CORNERS, 'tr'), play: numOr(tm.play, 10, 2, 120), era: pick(tm.era, [['BCE'], ['BC']], 'BCE') };
     var vd = raw.video || {};
     p.video = { fps: pick(+vd.fps, [[24], [30], [60]], 30), overlay: vd.overlay !== false, scale: pick(+vd.scale, [[0.5], [1], [2]], 1) };
     var vids = {};
@@ -5058,7 +5116,7 @@ var MAPC = (function () {
   function colorOf(p, f) { if (f.style.color) return f.style.color; for (var i = 0; i < p.layers.length; i++) if (p.layers[i].id === f.layer) return p.layers[i].color; return '#2F6FDE'; }
   // Builds the GeoJSON the map draws, plus the images it needs. measure(key) returns { w, h } of a drawn image in map pixels, or null.
   function render(p, o) {
-    o = o || {}; var out = [], specs = {}, nums = o.markers ? numbering(p).num : {}, theme = o.theme || 'dark', sel = o.selected || '';
+    o = o || {}; var out = [], specs = {}, images = [], nums = o.markers ? numbering(p).num : {}, theme = o.theme || 'dark', sel = o.selected || '';
     var measure = o.measure || function () { return null; };
     var li = {}; p.layers.forEach(function (l, i) { li[l.id] = i; });
     atTime(p, o.at).map(function (f, i) { return [f, i]; }).sort(function (a, b) { return (li[b[0].layer] - li[a[0].layer]) || (a[1] - b[1]); }).map(function (x) { return x[0]; }).forEach(function (f) {
@@ -5070,7 +5128,10 @@ var MAPC = (function () {
         var geom = { type: 'Polygon', coordinates: [ring] };
         feat('fill', geom, { c: col, o: s.fill });
         if (s.hatch) feat('hatch', geom, { pat: img(specs, { t: 'hatch', color: col }) });
-        if (s.outline || f.kind !== 'arrow') feat('outline', { type: 'LineString', coordinates: ring }, { c: f.kind === 'arrow' ? (theme === 'light' ? '#FFFFFF' : '#0B1218') : col, w: f.kind === 'arrow' ? 1.4 : Math.min(s.width, 12), d: f.kind === 'arrow' ? 'solid' : s.dash });
+        var edge = f.kind === 'arrow' ? 'line' : s.edge, line = { type: 'LineString', coordinates: ring };
+        if (edge === 'band') { var bw = Math.max(3, s.width * 3); feat('band', line, { c: col, w: bw, off: (ringArea(ring) > 0 ? -1 : 1) * bw / 2 }); }
+        if (edge === 'soft') feat('soft', line, { c: col, w: Math.max(2, s.width * 2.2) });
+        else if (s.outline || f.kind !== 'arrow') feat('outline', line, { c: f.kind === 'arrow' ? (theme === 'light' ? '#FFFFFF' : '#0B1218') : col, w: f.kind === 'arrow' ? 1.4 : edge === 'band' ? Math.min(1.2, s.width) : Math.min(s.width, 12), d: f.kind === 'arrow' ? 'solid' : s.dash });
         lp = f.kind === 'area' ? centroid(ring) : f.kind === 'ring' ? f.coords[0] : midpoint(smoothLL(f.coords, s.smooth));
         if (f.kind === 'ring') lp = destination(f.coords[0], 0, f.radius);
         anchorDefault = f.kind === 'ring' ? 'bottom' : 'center';
@@ -5091,10 +5152,15 @@ var MAPC = (function () {
         ext = mz && mz.fx != null ? { l: mz.fx, r: mz.fr, t: mz.ft, b: mz.fb } : { l: ax, r: mw - ax, t: ay, b: mh - ay };
         lp = f.coords[0]; anchorDefault = 'right';
       } else if (f.kind === 'label') { lp = f.coords[0]; }
-      var text = f.label || '', sup = o.markers ? supText(featureNums(f, nums)) : '';
-      if ((text || (sup && f.kind !== 'label')) && lp) {
+      else if (f.kind === 'image') {
+        var fr = closeRing(f.coords); feat('frame', { type: 'Polygon', coordinates: [fr] }, {});
+        if (f.img) images.push({ id: f.id, img: f.img, coords: f.coords, o: s.opacity });
+        lp = centroid(fr);
+      }
+      var text = f.label || '', sup = o.markers && s.marks ? supText(featureNums(f, nums)) : '';
+      if ((text || (sup && f.kind !== 'label')) && lp && s.labelPos !== 'none') {
         var pos = s.labelPos === 'auto' ? anchorDefault : s.labelPos;
-        var lk = img(specs, { t: 'label', text: text, sup: sup, style: s.labelStyle, size: s.labelSize, theme: theme, color: f.kind === 'label' ? col : '', bold: f.kind === 'label' });
+        var lk = img(specs, { t: 'label', text: text, sup: sup, style: s.labelStyle, size: s.labelSize, theme: theme, color: f.kind === 'label' || s.labelStyle === 'region' ? col : '', bold: f.kind === 'label' });
         var ss = o.symScale || 1, tsc = o.txtScale || 1;
         var off = { center: [0, 0], right: [(ext.r * ss + 4) / tsc, 0], left: [-(ext.l * ss + 4) / tsc, 0], top: [0, -(ext.t * ss + 3) / tsc], bottom: [0, (ext.b * ss + 3) / tsc] }[pos];
         var anchor = { center: 'center', right: 'left', left: 'right', top: 'bottom', bottom: 'top' }[pos];
@@ -5102,7 +5168,8 @@ var MAPC = (function () {
         feat('label', { type: 'Point', coordinates: lp }, { img: lk, an: anchor, off: [off[0] + s.dx / tsc, off[1] + s.dy / tsc] });
       }
     });
-    return { fc: { type: 'FeatureCollection', features: out }, specs: specs };
+    images.reverse(); // lower layers first, so they draw underneath
+    return { fc: { type: 'FeatureCollection', features: out }, specs: specs, images: images };
   }
   // Items for the legend: one per shown layer, then each distinct military symbol.
   function legendItems(p, catalogName) {
@@ -5111,10 +5178,10 @@ var MAPC = (function () {
       if (!l.visible || !l.legend) return;
       var fs = vis.filter(function (f) { return f.layer === l.id; }); if (!fs.length) return;
       var kinds = {}; fs.forEach(function (f) { kinds[f.kind] = (kinds[f.kind] || 0) + 1; });
-      var order = Object.keys(kinds).sort(function (a, b) { return kinds[b] - kinds[a]; }), top = order.filter(function (k) { return k !== 'symbol' && k !== 'label'; })[0];
+      var order = Object.keys(kinds).sort(function (a, b) { return kinds[b] - kinds[a]; }), top = order.filter(function (k) { return k !== 'symbol' && k !== 'label' && k !== 'image'; })[0];
       if (!top) { if (p.layout.symbolKey || !kinds.symbol) return; top = 'symbol'; } // a layer of symbols alone is listed symbol by symbol below
       var f0 = fs.filter(function (f) { return f.kind === top; })[0];
-      var it = { kind: top, label: l.name, color: f0.style.color || l.color, marker: f0.style.marker, dash: f0.style.dash, hatch: f0.style.hatch, fill: f0.style.fill };
+      var it = { kind: top, label: l.name, color: f0.style.color || l.color, marker: f0.style.marker, dash: f0.style.dash, hatch: f0.style.hatch, fill: f0.style.fill, edge: f0.style.edge };
       if (top === 'symbol') { it.sidc = sidcOf(f0.sym); it.sym = f0.sym; }
       items.push(it);
     });
@@ -5215,6 +5282,7 @@ var MAPC = (function () {
         var saved = pr.osint_map && typeof pr.osint_map === 'object' ? pr.osint_map : null;
         var f = saved ? JSON.parse(JSON.stringify(saved)) : { kind: pt[0], label: label, desc: clean(pr.description || pr.desc || ''), date: clean(pr.date || ''), style: {}, cites: [] };
         f.coords = coordList(pt[1]); if (!saved) f.kind = pt[0];
+        if (f.kind === 'image' && !f.img) { f.kind = 'area'; delete f.img; }
         if (f.kind === 'ring' && saved && saved.center) f.coords = [saved.center];
         f.layer = o.layerId; if (f.coords.length) feats.push(f); else skipped++;
       });
@@ -5228,9 +5296,81 @@ var MAPC = (function () {
       else if (f.kind === 'ring') geom = { type: 'Polygon', coordinates: [circle(f.coords[0], f.radius, 96)] };
       else if (f.kind === 'line' || f.kind === 'arrow') geom = { type: 'LineString', coordinates: f.coords };
       else geom = { type: 'Point', coordinates: f.coords[0] };
-      var keep = JSON.parse(JSON.stringify(f)); delete keep.coords; if (f.kind === 'ring') keep.center = f.coords[0];
+      var keep = JSON.parse(JSON.stringify(f)); delete keep.coords; delete keep.img; if (f.kind === 'ring') keep.center = f.coords[0];
+      if (f.kind === 'image') geom = { type: 'Polygon', coordinates: [closeRing(f.coords)] };
       return { type: 'Feature', geometry: geom, properties: { id: f.id, kind: f.kind, name: f.label, description: f.desc, date: f.date, layer: lay ? lay.name : '', sidc: f.kind === 'symbol' ? sidcOf(f.sym) : undefined, radius_km: f.radius, sources: f.cites.map(function (c) { return footnote ? footnote(c) : c.src; }), osint_map: keep } };
     }) };
+  }
+
+
+  // ---------- historical borders (Historical Basemaps by A. Ourednik, GPL-3.0; fetched at run time, never bundled) ----------
+  var HB_COMMIT = 'da7a4b735ecef70aebdc9c73e409d8a2500d50f3', HB_UPDATED = '15 September 2026';
+  // Snapshot years as the dataset gives them: negative years are years BCE (-323 is 323 BCE).
+  var HB_YEARS = [-123000, -10000, -8000, -5000, -4000, -3000, -2000, -1500, -1000, -700, -500, -400, -323, -300, -200, -100, -1, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1279, 1300, 1400, 1492, 1500, 1530, 1600, 1650, 1700, 1715, 1783, 1800, 1815, 1878, 1880, 1900, 1914, 1920, 1930, 1938, 1945, 1960, 1994, 2000, 2010];
+  function hbFile(y) { return 'world_' + (y < 0 ? 'bc' + (-y) : y) + '.geojson'; }
+  // The dataset's year (BCE as negative, no year zero) in astronomical numbering, and as text the date reader understands.
+  function hbAstro(y) { return y < 0 ? y + 1 : y; }
+  function hbYearText(y) { return y < 0 ? (-y) + ' BCE' : String(y); }
+  function hbUrls(file) { return ['https://cdn.jsdelivr.net/gh/aourednik/historical-basemaps@' + HB_COMMIT + '/geojson/' + file, 'https://raw.githubusercontent.com/aourednik/historical-basemaps/' + HB_COMMIT + '/geojson/' + file]; }
+  function hbPage(file) { return 'https://github.com/aourednik/historical-basemaps/blob/' + HB_COMMIT + '/geojson/' + file; }
+  function hbSource(file, accessed) {
+    var yr = /world_(bc)?(\d+)/.exec(file || ''), ytxt = yr ? (yr[1] ? yr[2] + ' BCE' : yr[2]) : '';
+    return { type: 'live', titleStyle: 'quotes', authors: 'A. Ourednik', shortTitle: 'Historical Basemaps' + (ytxt ? ', ' + ytxt : ''), title: 'Historical boundaries of world countries and cultural regions', location: 'GitHub', descType: 'GIS Dataset', descDetails: file + '; commit ' + HB_COMMIT.slice(0, 7),
+      dateKind: 'updated', date: HB_UPDATED, accessed: accessed || '', url: hbPage(file), access: [], quals: [],
+      note: 'Its author describes the dataset as a work in progress, adapted for world and continent scale, and asks users to verify borders against other sources.' };
+  }
+  // Douglas-Peucker on a ring in Web Mercator metres.
+  function simplifyRing(ring, tol) {
+    if (ring.length < 5 || !(tol > 0)) return ring;
+    var P2 = ring.map(merc), keep = new Uint8Array(P2.length), stack = [[0, P2.length - 1]], t2 = tol * tol;
+    keep[0] = keep[P2.length - 1] = 1;
+    while (stack.length) {
+      var se = stack.pop(), a = se[0], b = se[1], ax = P2[a][0], ay = P2[a][1], dx = P2[b][0] - ax, dy = P2[b][1] - ay, L2 = dx * dx + dy * dy, best = -1, bi = -1;
+      for (var i = a + 1; i < b; i++) {
+        var px = P2[i][0] - ax, py = P2[i][1] - ay, d2;
+        if (L2 === 0) d2 = px * px + py * py; else { var t = Math.max(0, Math.min(1, (px * dx + py * dy) / L2)), qx = px - t * dx, qy = py - t * dy; d2 = qx * qx + qy * qy; }
+        if (d2 > best) { best = d2; bi = i; }
+      }
+      if (best > t2) { keep[bi] = 1; stack.push([a, bi], [bi, b]); }
+    }
+    var out = []; for (var j = 0; j < ring.length; j++) if (keep[j]) out.push(ring[j]);
+    return out;
+  }
+  var HB_PALETTE = ['#C9A66B', '#9FB878', '#D98C6B', '#7FA6C4', '#B98FB5', '#D4B95E', '#8FBFAE', '#C98F8F', '#A3A3D1', '#B5A27A', '#7FB58F', '#D1A3BF'];
+  function hbColor(name) { var h = 0, s2 = String(name || ''); for (var i = 0; i < s2.length; i++) h = (h * 31 + s2.charCodeAt(i)) >>> 0; return HB_PALETTE[h % HB_PALETTE.length]; }
+  // Turns a Historical Basemaps snapshot into area features. o: { year, next, bbox [w, s, e, n] or null, tol (metres), layerId, src, soft, dated }
+  function hbToFeatures(gj, o) {
+    o = o || {}; var out = [], skipped = 0, total = 0, file = hbFile(o.year);
+    var words = { 1: 'approximate', 2: 'moderately precise', 3: 'determined by international law' };
+    var start = hbYearText(o.year), end = '';
+    if (o.dated && o.next != null) { var ea = hbAstro(o.next) - 1; end = ea <= 0 ? (1 - ea) + ' BCE' : String(ea); }
+    ((gj && gj.features) || []).forEach(function (ft) {
+      var g = ft && ft.geometry, pr = (ft && ft.properties) || {};
+      if (!g || (g.type !== 'Polygon' && g.type !== 'MultiPolygon')) { skipped++; return; }
+      total++;
+      var polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates, name = clean(pr.NAME || ''), subj = clean(pr.SUBJECTO || ''), part = clean(pr.PARTOF || ''), prec = +pr.BORDERPRECISION || 1;
+      var parts = [];
+      polys.forEach(function (poly) {
+        var ring = coordList(poly && poly[0]); if (ring.length < 4) return;
+        var bb = bbox([ring]);
+        if (o.bbox && (bb[2] < o.bbox[0] || bb[0] > o.bbox[2] || bb[3] < o.bbox[1] || bb[1] > o.bbox[3])) return;
+        var sr = simplifyRing(ring, o.tol || 0);
+        if (sr.length < 4) return;
+        if (sr[0][0] === sr[sr.length - 1][0] && sr[0][1] === sr[sr.length - 1][1]) sr = sr.slice(0, -1);
+        if (sr.length < 3) return;
+        parts.push({ ring: sr, area: Math.abs(ringArea(closeRing(sr))) });
+      });
+      if (!parts.length) return;
+      var big = parts.reduce(function (m, x) { return x.area > m.area ? x : m; }, parts[0]);
+      var desc = [subj && subj !== name ? 'Under ' + subj : '', part && part !== name && part !== subj ? 'Part of ' + part : ''].filter(Boolean).join('. ');
+      parts.forEach(function (x) {
+        out.push({ kind: 'area', layer: o.layerId, coords: x.ring, label: name, desc: desc, date: o.dated ? start : '', end: end,
+          note: 'Border from Historical Basemaps (' + file + '), precision ' + prec + ' of 3 (' + (words[prec] || 'approximate') + ').',
+          style: { color: hbColor(subj || name), fill: 0.3, width: 1, marks: false, edge: prec === 1 && o.soft ? 'soft' : 'line', dash: prec === 2 ? 'dash' : 'solid', labelStyle: 'region', labelSize: 0.9, labelPos: x === big && name ? 'center' : 'none' },
+          cites: o.src ? [{ src: o.src, loc: '', quote: '', note: '' }] : [] });
+      });
+    });
+    return { features: out, polities: total, skipped: skipped, file: file };
   }
 
   // ---------- checks ----------
@@ -5239,13 +5379,14 @@ var MAPC = (function () {
     p.sources.forEach(function (s) { src[s.id] = s; });
     p.features.forEach(function (f) {
       var name = KIND_NAMES[f.kind] + ' ' + f.id + (f.label ? ' "' + f.label + '"' : '');
-      if (!f.cites.length) rows.push({ level: f.kind === 'label' ? 'check' : 'fix', where: f.id, msg: name + ' has no source.' + (f.kind === 'label' ? ' Text that only names a place may not need one.' : ' Every plotted place needs one.') });
+      if (f.kind === 'image' && !/^(data:|https:)/.test(f.img || '')) rows.push({ level: 'fix', where: f.id, msg: name + ' has no picture. ' + (/^idb:/.test(f.img || '') ? 'Its copy in this browser is missing: open the saved map file, or replace the picture.' : 'Replace the picture.') });
+      if (!f.cites.length) rows.push({ level: f.kind === 'label' ? 'check' : 'fix', where: f.id, msg: name + ' has no source.' + (f.kind === 'label' ? ' Text that only names a place may not need one.' : f.kind === 'image' ? ' Cite where the scan came from: the library or archive and its catalog record.' : ' Every plotted place needs one.') });
       f.cites.forEach(function (c, i) {
         if (!c.src) return rows.push({ level: 'fix', where: f.id, msg: name + ', citation ' + (i + 1) + ' names no source.' });
         if (!src[c.src]) return rows.push({ level: 'fix', where: f.id, msg: name + ' cites ' + c.src + ', which is not in the source list.' });
         used[c.src] = 1;
       });
-      if (f.date && !parseWhen(f.date)) rows.push({ level: 'check', where: f.id, msg: name + ': the date "' + f.date + '" cannot be read, so the time slider ignores it. Write it like 06 June 1944 or 1944-06-06 06:30.' });
+      if (f.date && !parseWhen(f.date)) rows.push({ level: 'check', where: f.id, msg: name + ': the date "' + f.date + '" cannot be read, so the time bar ignores it. Write it like 06 June 1944, 1944-06-06 06:30, c. 1450 or 44 BC.' });
       if (f.end && !parseWhen(f.end)) rows.push({ level: 'check', where: f.id, msg: name + ': the end date "' + f.end + '" cannot be read.' });
       if (f.kind === 'symbol' && !f.sym.custom && !f.sym.tpl) rows.push({ level: 'fix', where: f.id, msg: name + ' has no symbol chosen.' });
     });
@@ -5273,12 +5414,13 @@ var MAPC = (function () {
   }
 
   return {
-    FORMAT: FORMAT, REF_W: REF_W, AFFIL_ADJ: AFFIL_ADJ, KINDS: KINDS, KIND_NAMES: KIND_NAMES, MARKERS: MARKERS, COLORS: COLORS, AFFIL: AFFIL, STATUS: STATUS, ECHELON: ECHELON, HQTF: HQTF, DASHES: DASHES, PRESETS: PRESETS, CORNERS: CORNERS, TONES: TONES, CSV_FIELDS: CSV_FIELDS,
+    FORMAT: FORMAT, REF_W: REF_W, AFFIL_ADJ: AFFIL_ADJ, KINDS: KINDS, KIND_NAMES: KIND_NAMES, MARKERS: MARKERS, COLORS: COLORS, AFFIL: AFFIL, STATUS: STATUS, ECHELON: ECHELON, HQTF: HQTF, DASHES: DASHES, EDGES: EDGES, MODERN: MODERN, PRESETS: PRESETS, CORNERS: CORNERS, TONES: TONES, CSV_FIELDS: CSV_FIELDS,
     clean: clean, str: str, nextId: nextId, parseCoord: parseCoord, fmtCoord: fmtCoord, dist: dist, lengthKm: lengthKm, destination: destination, circle: circle, merc: merc, unmerc: unmerc, screenBearing: screenBearing,
-    smoothLL: smoothLL, midpoint: midpoint, centroid: centroid, boldArrow: boldArrow, bbox: bbox, extent: extent, isUnitTpl: isUnitTpl, isInstallTpl: isInstallTpl, sidcOf: sidcOf, catalogKey: catalogKey,
-    parseWhen: parseWhen, fmtWhen: fmtWhen, spanOf: spanOf, onAt: onAt, timeRange: timeRange, atTime: atTime, flyPath: flyPath, videoPlan: videoPlan, ease: ease,
+    ringArea: ringArea, closeRing: closeRing, smoothLL: smoothLL, midpoint: midpoint, centroid: centroid, boldArrow: boldArrow, bbox: bbox, extent: extent, isUnitTpl: isUnitTpl, isInstallTpl: isInstallTpl, sidcOf: sidcOf, catalogKey: catalogKey,
+    parseWhen: parseWhen, fmtWhen: fmtWhen, yearText: yearText, barPrec: barPrec, snapTime: snapTime, unitStart: unitStart, spanOf: spanOf, onAt: onAt, timeRange: timeRange, atTime: atTime, flyPath: flyPath, videoPlan: videoPlan, ease: ease,
     parseColor: parseColor, hexOf: hexOf, lum: lum, toneColor: toneColor, restyle: restyle, scaleWidth: scaleWidth, blank: blank, normalize: normalize, normFeature: normFeature, sourceState: sourceState,
     shown: shown, numbering: numbering, featureNums: featureNums, supText: supText, render: render, legendItems: legendItems, colorOf: colorOf, parseCSV: parseCSV, csvCell: csvCell, guessMapping: guessMapping, parseWKT: parseWKT,
+    HB_COMMIT: HB_COMMIT, HB_YEARS: HB_YEARS, hbFile: hbFile, hbYearText: hbYearText, hbUrls: hbUrls, hbPage: hbPage, hbSource: hbSource, hbToFeatures: hbToFeatures, simplifyRing: simplifyRing,
     csvToFeatures: csvToFeatures, geojsonToFeatures: geojsonToFeatures, toGeoJSON: toGeoJSON, audit: audit, metresPerPixel: metresPerPixel, niceDistance: niceDistance
   };
 })();
@@ -5339,16 +5481,56 @@ var MAPC = (function () {
   function shortPlain(fields) { try { return O.toPlain(O.shortForms(Object.assign({}, st(fields, ''), { locator: '' })).short).replace(/\.(["”’]?)$/, '$1'); } catch (e) { return fnPlain(fields, ''); } }
   function zone(f) { return O.zoneOf(f && f.rating) || ''; }
 
-  function snapshot() { return JSON.stringify({ layers: P.layers, features: P.features, sources: P.sources }); }
+  // ---------- scanned-map pictures ----------
+  // A picture is kept in the project as a data: URL. Undo snapshots and the browser copy refer to it by a short key instead,
+  // and the browser copy keeps the picture itself in IndexedDB, which holds far more than local storage.
+  var IMGKEY = new Map(), IMGMEM = {}, IDB_SAVED = {}, idbP = null, idbWarned = false;
+  function imgKey(d) {
+    var k = IMGKEY.get(d); if (k) return k;
+    var h = 5381, step = Math.max(1, Math.floor(d.length / 6000));
+    for (var i = 0; i < d.length; i += step) h = ((h << 5) + h + d.charCodeAt(i)) | 0;
+    k = 'm' + (h >>> 0).toString(36) + d.length.toString(36); IMGKEY.set(d, k); IMGMEM[k] = d; return k;
+  }
+  function idb() {
+    if (!idbP) idbP = new Promise(function (res, rej) { try { var r = indexedDB.open('osint-map-images', 1); r.onupgradeneeded = function () { r.result.createObjectStore('img'); }; r.onsuccess = function () { res(r.result); }; r.onerror = function () { rej(r.error); }; } catch (e) { rej(e); } });
+    return idbP;
+  }
+  function idbDo(mode, fn) { return idb().then(function (db) { return new Promise(function (res, rej) { var tx = db.transaction('img', mode), out = fn(tx.objectStore('img')); tx.oncomplete = function () { res(out && out.result); }; tx.onerror = function () { rej(tx.error); }; }); }); }
+  function idbPut(k, v) { if (IDB_SAVED[k]) return; IDB_SAVED[k] = 1; idbDo('readwrite', function (s) { s.put(v, k); }).catch(function () { delete IDB_SAVED[k]; if (!idbWarned) { idbWarned = true; toast('This browser could not keep the scanned map. Save the map to a file to keep it.'); } }); }
+  function idbPrune(keep) { idbDo('readwrite', function (s) { var r = s.getAllKeys(); r.onsuccess = function () { (r.result || []).forEach(function (k) { if (!keep[k]) { s.delete(k); delete IDB_SAVED[k]; } }); }; }).catch(function () { /* nothing kept */ }); }
+  function packImg(k, v) { return k === 'img' && typeof v === 'string' && v.indexOf('data:') === 0 ? 'mem:' + imgKey(v) : v; }
+  function unpackImg(k, v) { return k === 'img' && typeof v === 'string' && v.indexOf('mem:') === 0 ? (IMGMEM[v.slice(4)] || '') : v; }
+  function forStore() {
+    var keep = {}, any = false;
+    var json = JSON.stringify({ project: P, savedAt: new Date().toISOString() }, function (k, v) {
+      if (k === 'img' && typeof v === 'string' && v.indexOf('data:') === 0) { var key = imgKey(v); keep[key] = 1; any = true; idbPut(key, v); return 'idb:' + key; }
+      if (k === 'img' && typeof v === 'string' && v.indexOf('idb:') === 0) keep[v.slice(4)] = 1;
+      return v;
+    });
+    if (any || Object.keys(IDB_SAVED).length) idbPrune(keep);
+    return json;
+  }
+  // After opening the browser copy: bring back the pictures it refers to.
+  function restoreImgs() {
+    P.features.forEach(function (f) {
+      if (f.kind !== 'image' || !/^idb:/.test(f.img || '')) return;
+      var k = f.img.slice(4);
+      idbDo('readonly', function (s) { return s.get(k); }).then(function (v) {
+        if (typeof v !== 'string') return; IMGKEY.set(v, k); IMGMEM[k] = v; IDB_SAVED[k] = 1;
+        P.features.forEach(function (g) { if (g.img === 'idb:' + k) g.img = v; }); sync(); if (ui.sel) renderSide();
+      }).catch(function () { /* missing: the Check tab says so */ });
+    });
+  }
+  function snapshot() { return JSON.stringify({ layers: P.layers, features: P.features, sources: P.sources, views: P.views }, packImg); }
   function pushUndo(before) { if (before === snapshot()) return; undoStack.push(before); if (undoStack.length > 80) undoStack.shift(); redoStack = []; undoButtons(); }
   function commit(fn) { var before = snapshot(); fn(); pushUndo(before); touch(); }
-  function restore(s) { var o = JSON.parse(s); P.layers = o.layers; P.features = o.features; P.sources = o.sources; if (ui.sel && !featOf(ui.sel)) ui.sel = null; if (!layerOf(ui.layer)) ui.layer = P.layers[0].id; touch(); sync(); renderSide(); }
+  function restore(s) { var o = JSON.parse(s, unpackImg); P.layers = o.layers; P.features = o.features; P.sources = o.sources; if (o.views) P.views = o.views; if (ui.sel && !featOf(ui.sel)) ui.sel = null; if (!layerOf(ui.layer)) ui.layer = P.layers[0].id; touch(); sync(); renderSide(); }
   function undo() { if (!undoStack.length) return; redoStack.push(snapshot()); restore(undoStack.pop()); undoButtons(); }
   function redo() { if (!redoStack.length) return; undoStack.push(snapshot()); restore(redoStack.pop()); undoButtons(); }
   function undoButtons() { if ($('undoBtn')) { $('undoBtn').disabled = !undoStack.length; $('redoBtn').disabled = !redoStack.length; } }
   function touch() {
     fileDirty = true; clearTimeout(touch.t);
-    touch.t = setTimeout(function () { if (lsSet(STORE, JSON.stringify({ project: P, savedAt: new Date().toISOString() }))) savedAt = new Date(); else if (!touch.warned) { touch.warned = 1; toast('This map is too large to keep in the browser. Save it to a file.'); } status(); }, 500);
+    touch.t = setTimeout(function () { if (lsSet(STORE, forStore())) savedAt = new Date(); else if (!touch.warned) { touch.warned = 1; toast('This map is too large to keep in the browser. Save it to a file.'); } status(); }, 500);
     status();
   }
   function status() { var el = $('status'); if (el) el.textContent = (savedAt ? 'Kept in this browser ' + savedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'Not yet kept in this browser') + (fileDirty ? ' · not saved to a file' : ''); }
@@ -5430,7 +5612,8 @@ var MAPC = (function () {
       void oa; ex.fx = ex.ax; ex.fr = w - ex.ax; ex.ft = ex.ay; ex.fb = h - ex.ay;
       return { canvas: c, w: w, h: h, ratio: R, ax: ex.ax, ay: ex.ay, fx: ex.fx, fr: ex.fr, ft: ex.ft, fb: ex.fb };
     } else if (spec.t === 'label') {
-      var fs = (spec.bold ? 15 : 13) * spec.size, lines = labelLines(spec.text), wt = spec.bold ? 700 : 600, font = wt + ' ' + fs + 'px ' + FONT, sfont = '700 ' + (fs * (spec.text ? 0.68 : 0.85)) + 'px ' + FONT;
+      var region = spec.style === 'region', fs = (spec.bold ? 15 : region ? 12.5 : 13) * spec.size, lines = labelLines(spec.text), wt = spec.bold ? 700 : 600, font = wt + ' ' + fs + 'px ' + (region ? SERIF : FONT), sfont = '700 ' + (fs * (spec.text ? 0.68 : 0.85)) + 'px ' + FONT;
+      if (region) lines = lines.map(function (l) { return l.toUpperCase().split('').join('\u2009'); });
       var tmp = canvas(4, 4).getContext('2d'); tmp.font = font;
       var widths = lines.map(function (l) { return tmp.measureText(l).width; }); tmp.font = sfont;
       var supW = spec.sup ? tmp.measureText(spec.sup).width + fs * 0.15 : 0, lh = fs * 1.18, box = spec.style === 'box', px = box ? fs * 0.45 : 3.5, py = box ? fs * 0.28 : 3;
@@ -5438,14 +5621,15 @@ var MAPC = (function () {
       w = Math.max.apply(null, widths) + supW + px * 2; h = lh * lines.length + py * 2;
       c = canvas(w * R, h * R); ctx = c.getContext('2d'); ctx.scale(R, R);
       var light = !dark, txt = spec.color || (light ? '#10171D' : '#FFFFFF');
-      if (spec.color) { var cc = M.parseColor(spec.color); light = M.lum(cc) < 0.45; }
+      if (region && spec.color) { var rc = M.parseColor(spec.color) || [90, 90, 90, 1], tg = dark ? 255 : 22, mix = dark ? 0.55 : 0.62; txt = 'rgb(' + rc.slice(0, 3).map(function (v) { return Math.round(v + (tg - v) * mix); }).join(',') + ')'; light = !dark; }
+      else if (spec.color) { var cc = M.parseColor(spec.color); light = M.lum(cc) < 0.45; }
       var halo = light ? 'rgba(255,255,255,0.96)' : 'rgba(6,10,14,0.92)';
       if (box) { ctx.fillStyle = light ? 'rgba(255,255,255,0.94)' : 'rgba(8,14,20,0.88)'; roundRect(ctx, 0.5, 0.5, w - 1, h - 1, fs * 0.22); ctx.fill(); if (!spec.color) txt = light ? '#10171D' : '#FFFFFF'; }
       ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
       lines.forEach(function (l, i) {
         var y = py + lh * (i + 0.5), x = px + (Math.max.apply(null, widths) - widths[i]) / 2;
         ctx.font = font;
-        if (spec.style === 'halo') { ctx.lineWidth = Math.max(2.6, fs * 0.26); ctx.strokeStyle = halo; ctx.strokeText(l, x, y); }
+        if (spec.style === 'halo' || region) { ctx.lineWidth = Math.max(2.6, fs * (region ? 0.22 : 0.26)); ctx.strokeStyle = region ? halo.replace(/[\d.]+\)$/, '0.75)') : halo; ctx.strokeText(l, x, y); }
         ctx.fillStyle = txt; ctx.fillText(l, x, y);
         if (i === 0 && spec.sup) {
           var sx = px + Math.max.apply(null, widths) + fs * 0.12, sy = y - fs * 0.32; ctx.font = sfont;
@@ -5552,7 +5736,7 @@ var MAPC = (function () {
       var at = L.length; for (i = after; i < L.length; i++) { if (L[i].type === 'line' || L[i].type === 'symbol' || L[i].type === 'fill-extrusion') { at = i; break; } }
       L.splice(at, 0, { id: 'om-hillshade', type: 'hillshade', source: 'om-dem', paint: { 'hillshade-exaggeration': b.hillshadeOpacity, 'hillshade-shadow-color': '#1E2125', 'hillshade-highlight-color': '#FFFFFF', 'hillshade-accent-color': '#2C3034' } });
     }
-    var out = M.restyle(s, { tone: b.tone, labels: b.labels, borders: b.borders });
+    var out = M.restyle(s, { tone: b.tone, labels: b.labels, borders: b.borders, modern: b.modern });
     if (id === 'outline' && b.tone !== 'original') { /* restyle covers outline colors */ }
     return out;
   }
@@ -5563,6 +5747,8 @@ var MAPC = (function () {
     if (b.relief) parts.push('Shaded relief: Natural Earth');
     if (b.imagery && IMG_SRC[b.imagery]) parts.push(IMG_SRC[b.imagery].attr);
     if (b.hillshade) parts.push('Elevation: Terrain Tiles (Mapzen, AWS Open Data; SRTM, GMTED2010, ETOPO1 and others)');
+    var hb = {}; P.sources.forEach(function (s) { if (/aourednik\/historical-basemaps/.test(s.fields.url || '')) hb[s.id] = 1; });
+    if (M.shown(P).some(function (f) { return f.cites.some(function (c) { return hb[c.src]; }); })) parts.push('Historical borders: Historical Basemaps by A. Ourednik (GPL-3.0)');
     return parts.join(' · ');
   }
   // Loads the chosen basemap; resolves with a full style (basemap + data layers).
@@ -5585,9 +5771,12 @@ var MAPC = (function () {
     var sym = L.symbolScale, txt = L.textScale, g = function (v) { return ['==', ['get', 'g'], v]; };
     var w = ['*', u, ['get', 'w']], round = { 'line-cap': 'round', 'line-join': 'round' };
     var layers = [
+      { id: 'om-frame', type: 'fill', source: 'om', filter: g('frame'), paint: { 'fill-color': '#000000', 'fill-opacity': 0 } },
       { id: 'om-fill', type: 'fill', source: 'om', filter: g('fill'), paint: { 'fill-color': ['get', 'c'], 'fill-opacity': ['get', 'o'] } },
       { id: 'om-hatch', type: 'fill', source: 'om', filter: g('hatch'), paint: { 'fill-pattern': ['get', 'pat'] } },
-      { id: 'om-sel-line', type: 'line', source: 'om', filter: ['all', ['==', ['get', 'sel'], 1], ['any', g('outline'), g('line')]], layout: round, paint: { 'line-color': '#F2A900', 'line-width': ['+', w, 8 * u], 'line-opacity': 0.5 } },
+      { id: 'om-band', type: 'line', source: 'om', filter: g('band'), layout: { 'line-join': 'round' }, paint: { 'line-color': ['get', 'c'], 'line-width': w, 'line-offset': ['*', u, ['get', 'off']], 'line-opacity': 0.5 } },
+      { id: 'om-soft', type: 'line', source: 'om', filter: g('soft'), layout: round, paint: { 'line-color': ['get', 'c'], 'line-width': w, 'line-blur': ['*', 0.9, w], 'line-opacity': 0.9 } },
+      { id: 'om-sel-line', type: 'line', source: 'om', filter: ['all', ['==', ['get', 'sel'], 1], ['any', g('outline'), g('line'), g('band'), g('soft'), g('frame')]], layout: round, paint: { 'line-color': '#F2A900', 'line-width': ['+', w, 8 * u], 'line-opacity': 0.5 } },
       { id: 'om-outline', type: 'line', source: 'om', filter: ['all', g('outline'), ['==', ['get', 'd'], 'solid']], layout: round, paint: { 'line-color': ['get', 'c'], 'line-width': w } },
       { id: 'om-outline-dash', type: 'line', source: 'om', filter: ['all', g('outline'), ['==', ['get', 'd'], 'dash']], layout: { 'line-join': 'round' }, paint: { 'line-color': ['get', 'c'], 'line-width': w, 'line-dasharray': [3, 2] } },
       { id: 'om-outline-dot', type: 'line', source: 'om', filter: ['all', g('outline'), ['==', ['get', 'd'], 'dot']], layout: round, paint: { 'line-color': ['get', 'c'], 'line-width': w, 'line-dasharray': [0.1, 2] } },
@@ -5616,12 +5805,30 @@ var MAPC = (function () {
   }
   function renderOpts(sel, forExport) { return { markers: P.layout.markers, theme: isDark() ? 'dark' : 'light', selected: forExport ? '' : sel, measure: measureKey, symScale: P.layout.symbolScale, txtScale: P.layout.textScale }; }
   // at: a map time to draw instead of the project's own (used by video export).
-  function computeFC(forExport, at) {
+  function computeFC(forExport, at) { return computeRender(forExport, at).fc; }
+  // The features to draw (fc) and the scanned maps under them (images).
+  function computeRender(forExport, at) {
     var o = renderOpts(ui.sel, forExport); if (at !== undefined) o.at = at;
     var r = M.render(P, o), fresh = false;
     Object.keys(r.specs).forEach(function (k) { if (!SPECS[k]) { SPECS[k] = r.specs[k]; fresh = true; } });
     if (fresh) { r = M.render(P, o); Object.keys(r.specs).forEach(function (k) { SPECS[k] = r.specs[k]; }); }
-    return r.fc;
+    return r;
+  }
+  // Keeps a map's scanned-map layers in step with the project: adds, moves, fades and removes them under the data layers.
+  function syncImages(m, images) {
+    if (!m.getLayer('om-frame')) return;
+    var have = m.__omImgs || (m.__omImgs = {}), want = {};
+    images.forEach(function (im) {
+      if (!/^(data:|https:)/.test(im.img)) return;
+      var id = 'omi-' + im.id, key = im.img.indexOf('data:') === 0 ? imgKey(im.img) : im.img, cs = JSON.stringify(im.coords), src = m.getSource(id);
+      want[id] = 1;
+      if (src && (!have[id] || have[id].key !== key)) { if (m.getLayer(id)) m.removeLayer(id); m.removeSource(id); src = null; }
+      try {
+        if (!src) { m.addSource(id, { type: 'image', url: im.img, coordinates: im.coords }); m.addLayer({ id: id, type: 'raster', source: id, paint: { 'raster-opacity': im.o, 'raster-fade-duration': 0 } }, 'om-frame'); have[id] = { key: key, cs: cs, o: im.o }; }
+        else { if (have[id].cs !== cs) { src.setCoordinates(im.coords); have[id].cs = cs; } if (have[id].o !== im.o) { m.setPaintProperty(id, 'raster-opacity', im.o); have[id].o = im.o; } }
+      } catch (e) { /* a bad picture: the Check tab reports it */ }
+    });
+    Object.keys(have).forEach(function (id) { if (want[id]) return; if (m.getLayer(id)) m.removeLayer(id); if (m.getSource(id)) m.removeSource(id); delete have[id]; });
   }
   function addMissing(m, id, ratio, dark) {
     if (m.hasImage(id)) return;
@@ -5634,14 +5841,16 @@ var MAPC = (function () {
     cancelAnimationFrame(syncT);
     syncT = requestAnimationFrame(function () {
       var src = map.getSource('om'); if (!src) return;
-      src.setData(computeFC(false)); editData(); drawOverlay(); timebar();
+      var r = computeRender(false); src.setData(r.fc); syncImages(map, r.images); editData(); drawOverlay(); timebar();
     });
   }
 
   // ---------- the time bar ----------
   var playing = null;
   function tRange() { return M.timeRange(P); }
-  function snapT(t, r) { var span = r.max - r.min, step = !r.minute ? 86400000 : span <= 2 * 86400000 ? 300000 : span <= 14 * 86400000 ? 3600000 : 86400000; return Math.min(r.max, Math.max(r.min, Math.round(t / step) * step)); }
+  function snapT(t, r) { return M.snapTime(t, r); }
+  // A date as the time bar and the image show it, to the precision the data uses.
+  function whenText(t, r) { return M.fmtWhen(t, r ? M.barPrec(r) : 'day', P.time.era); }
   function timebar() {
     var r = tRange(), bar = $('timebar'), stage = $('stage'), had = !bar.hidden;
     bar.hidden = !r; stage.classList.toggle('hastime', !!r);
@@ -5650,7 +5859,7 @@ var MAPC = (function () {
     var tm = P.time, at = tm.at == null ? r.max : Math.min(r.max, Math.max(r.min, tm.at));
     $('tMode').value = tm.mode; bar.classList.toggle('off', tm.mode === 'all');
     if (document.activeElement !== $('tRange')) $('tRange').value = r.max > r.min ? Math.round((at - r.min) / (r.max - r.min) * 1000) : 1000;
-    $('tDate').textContent = tm.mode === 'all' ? r.n + ' dated' : M.fmtWhen(at, r.minute ? 'minute' : 'day');
+    $('tDate').textContent = tm.mode === 'all' ? r.n + ' dated' : whenText(at, r);
     $('tPlayIcon').setAttribute('d', playing ? 'M7 5h3.5v14H7zM13.5 5H17v14h-3.5z' : 'M7 5l12 7-12 7z');
   }
   function setTime(at, quiet) { P.time.at = at; if (P.time.mode === 'all') P.time.mode = 'upto'; if (!quiet) touch(); sync(); }
@@ -5666,7 +5875,7 @@ var MAPC = (function () {
     var u = U(), L = P.layout;
     dataLayers(u, L, false).forEach(function (l) {
       if (!map.getLayer(l.id)) return;
-      Object.keys(l.paint || {}).forEach(function (k) { if (/width|radius/.test(k)) map.setPaintProperty(l.id, k, l.paint[k]); });
+      Object.keys(l.paint || {}).forEach(function (k) { if (/width|radius|offset|blur/.test(k)) map.setPaintProperty(l.id, k, l.paint[k]); });
       Object.keys(l.layout || {}).forEach(function (k) { if (k === 'icon-size') map.setLayoutProperty(l.id, k, l.layout[k]); });
     });
   }
@@ -5687,7 +5896,7 @@ var MAPC = (function () {
   function initMap(style) {
     var v = P.view;
     map = new ML.Map({ container: 'map', style: style, center: v.center, zoom: zoomFor(v.zoom, frameW), bearing: v.bearing, pitch: v.pitch, attributionControl: false, maxPitch: 60, fadeDuration: 120, dragRotate: true, touchPitch: false, doubleClickZoom: true });
-    map.on('style.load', function () { mapReady = true; $('basebusy').hidden = true; sync(); });
+    map.on('style.load', function () { mapReady = true; map.__omImgs = {}; $('basebusy').hidden = true; sync(); });
     map.on('styleimagemissing', function (e) { addMissing(map, e.id, mapRatio(), isDark()); });
     map.on('idle', function () { $('basebusy').hidden = true; });
     map.on('error', function (e) { if (e && e.error && /Failed to fetch|NetworkError|AJAXError/i.test(String(e.error.message || e.error))) { /* a tile failed; ignore */ } });
@@ -5727,6 +5936,7 @@ var MAPC = (function () {
         for (var i = 0; i < (closed ? n : n - 1); i++) { var a = f.coords[i], b = f.coords[(i + 1) % n]; pt(M.unmerc([(M.merc(a)[0] + M.merc(b)[0]) / 2, (M.merc(a)[1] + M.merc(b)[1]) / 2]), 'm', i); }
         if (f.kind === 'arrow') out.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: M.smoothLL(f.coords, f.style.smooth) }, properties: { r: 'line' } });
       } else if (f.kind === 'ring') { pt(f.coords[0], 'c', 0); pt(M.destination(f.coords[0], 90, f.radius), 'rad', 0); }
+      else if (f.kind === 'image' && !f.style.locked) f.coords.forEach(function (c, i) { pt(c, 'v', i); });
     }
     src.setData({ type: 'FeatureCollection', features: out });
   }
@@ -5744,12 +5954,13 @@ var MAPC = (function () {
     coords: '<path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="1.8"/>',
     fit: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
     lock: '<rect x="6" y="11" width="12" height="9" rx="1.5" fill="currentColor"/><path d="M8.5 11V8a3.5 3.5 0 017 0v3" fill="none" stroke="currentColor" stroke-width="2"/>',
-    north: '<path d="M12 3l5 16-5-4-5 4z" fill="currentColor"/>' };
+    north: '<path d="M12 3l5 16-5-4-5 4z" fill="currentColor"/>',
+    image: '<path d="M4 6l5-2 6 2 5-2v14l-5 2-6-2-5 2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M6 15l3-4 3 3 2-2 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>' };
   var TOOLS = [['select', 'Select and move (V)'], ['point', 'Marker (M)'], ['symbol', 'Military symbol (S)'], ['label', 'Text (T)'], ['line', 'Line (L)'], ['arrow', 'Bold arrow (A)'], ['area', 'Area (G)'], ['ring', 'Range ring (R)']];
   function svg(name) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICONS[name] + '</svg>'; }
   function renderTools() {
     $('tools').innerHTML = TOOLS.map(function (t) { return '<button data-tool="' + t[0] + '" title="' + esc(t[1]) + '" aria-label="' + esc(t[1]) + '" aria-pressed="' + (ui.tool === t[0]) + '">' + svg(t[0]) + '</button>'; }).join('') +
-      '<hr><button data-tact="keep" title="Keep the tool after placing" aria-label="Keep the tool after placing" aria-pressed="' + ui.keep + '">' + svg('lock') + '</button><button data-tact="coords" title="Add at coordinates" aria-label="Add at coordinates">' + svg('coords') + '</button><button data-tact="fit" title="Zoom to all features" aria-label="Zoom to all features">' + svg('fit') + '</button><button data-tact="north" title="Face north" aria-label="Face north">' + svg('north') + '</button>';
+      '<hr><button data-tact="keep" title="Keep the tool after placing" aria-label="Keep the tool after placing" aria-pressed="' + ui.keep + '">' + svg('lock') + '</button><button data-tact="coords" title="Add at coordinates" aria-label="Add at coordinates">' + svg('coords') + '</button><button data-tact="image" title="Add a scanned map" aria-label="Add a scanned map">' + svg('image') + '</button><button data-tact="fit" title="Zoom to all features" aria-label="Zoom to all features">' + svg('fit') + '</button><button data-tact="north" title="Face north" aria-label="Face north">' + svg('north') + '</button>';
   }
   function setTool(t) {
     if (ui.draft) cancelDraft();
@@ -5775,6 +5986,7 @@ var MAPC = (function () {
     if (a === 'keep') { ui.keep = !ui.keep; renderTools(); }
     if (a === 'coords') addAtCoords();
     if (a === 'fit') fitAll();
+    if (a === 'image') addImageDialog();
     if (a === 'north') map && map.easeTo({ bearing: 0, pitch: 0 });
   });
   $('hint').addEventListener('click', function (e) {
@@ -5841,11 +6053,13 @@ var MAPC = (function () {
   }
 
   // ---------- pointer handling on the map ----------
-  var HIT = ['om-point', 'om-label', 'om-line', 'om-line-dash', 'om-line-dot', 'om-head', 'om-outline', 'om-outline-dash', 'om-outline-dot', 'om-fill'];
+  var HIT = ['om-point', 'om-label', 'om-line', 'om-line-dash', 'om-line-dot', 'om-head', 'om-outline', 'om-outline-dash', 'om-outline-dot', 'om-band', 'om-soft', 'om-fill', 'om-frame'];
   function hitAt(pt, layers, pad) {
     pad = pad == null ? 5 : pad;
     var have = (layers || HIT).filter(function (l) { return map.getLayer(l); }); if (!have.length) return null;
     var fs = map.queryRenderedFeatures([[pt.x - pad, pt.y - pad], [pt.x + pad, pt.y + pad]], { layers: have });
+    // A locked scanned map is part of the background: clicks and drags on it go to the map.
+    fs = fs.filter(function (h) { if (h.properties.g !== 'frame') return true; var f = featOf(h.properties.fid); return f && !f.style.locked; });
     return fs.length ? fs[0] : null;
   }
   function lngLat(e) { return [+e.lngLat.lng.toFixed(7), +e.lngLat.lat.toFixed(7)]; }
@@ -5886,13 +6100,13 @@ var MAPC = (function () {
       if (ui.draft && ui.draft.kind !== 'ring') { e.preventDefault(); finishDraft(); return; }
       if (ui.tool === 'select' && ui.sel) {
         var v = hitAt(e.point, ['om-vtx'], 6), f = featOf(ui.sel);
-        if (v && f && v.properties.r === 'v' && f.coords.length > (f.kind === 'area' ? 3 : 2)) { e.preventDefault(); commit(function () { f.coords.splice(v.properties.i, 1); }); sync(); renderSide(); }
+        if (v && f && f.kind !== 'image' && v.properties.r === 'v' && f.coords.length > (f.kind === 'area' ? 3 : 2)) { e.preventDefault(); commit(function () { f.coords.splice(v.properties.i, 1); }); sync(); renderSide(); }
       }
     });
     function down(e) {
       if (ui.tool !== 'select' || !ui.sel || (e.originalEvent && e.originalEvent.button > 0)) return;
       if (e.points && e.points.length > 1) return;
-      var f = featOf(ui.sel); if (!f) return;
+      var f = featOf(ui.sel); if (!f || (f.kind === 'image' && f.style.locked)) return;
       var v = hitAt(e.point, ['om-vtx', 'om-vtx-mid'], 8), mode = null, idx = 0;
       if (v) { mode = v.properties.r; idx = v.properties.i; }
       else { var h = hitAt(e.point); if (h && h.properties.fid === f.id) mode = 'move'; }
@@ -5915,14 +6129,20 @@ var MAPC = (function () {
   }
   function dragMove(e) {
     var d = ui.drag, f = d.f, c = lngLat(e); d.moved = true;
-    if (d.mode === 'v') f.coords[d.i] = c;
+    if (d.mode === 'v' && f.kind === 'image' && e.originalEvent && e.originalEvent.shiftKey) {
+      // Shift-drag a corner: turn and scale the picture about the opposite corner, keeping its shape.
+      var o = M.merc(d.orig[(d.i + 2) % 4]), p0 = M.merc(d.orig[d.i]), p1 = M.merc(c), v0 = [p0[0] - o[0], p0[1] - o[1]], v1 = [p1[0] - o[0], p1[1] - o[1]], n0 = v0[0] * v0[0] + v0[1] * v0[1];
+      if (n0 > 0) { var zr = (v1[0] * v0[0] + v1[1] * v0[1]) / n0, zi = (v1[1] * v0[0] - v1[0] * v0[1]) / n0;
+        f.coords = d.orig.map(function (q) { var m = M.merc(q), x = m[0] - o[0], y = m[1] - o[1]; return M.unmerc([o[0] + x * zr - y * zi, o[1] + x * zi + y * zr]).map(function (t) { return +t.toFixed(7); }); }); }
+    }
+    else if (d.mode === 'v') f.coords[d.i] = c;
     else if (d.mode === 'c') f.coords[0] = c;
     else if (d.mode === 'rad') f.radius = +Math.max(0.01, M.dist(f.coords[0], c)).toPrecision(4);
     else if (d.mode === 'move') {
       var a = M.merc(d.start), b = M.merc(c), dx = b[0] - a[0], dy = b[1] - a[1];
       f.coords = d.orig.map(function (p) { var q = M.merc(p); return M.unmerc([q[0] + dx, q[1] + dy]).map(function (x) { return +x.toFixed(7); }); });
     }
-    var src = map.getSource('om'); if (src) src.setData(computeFC(false)); editData();
+    var src = map.getSource('om'); if (src) { var rr = computeRender(false); src.setData(rr.fc); syncImages(map, rr.images); } editData();
   }
   document.addEventListener('keydown', function (e) {
     var tag = (e.target.tagName || '').toLowerCase(), typing = tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable;
@@ -5953,10 +6173,10 @@ var MAPC = (function () {
   // What the layout needs to know about a map (the main one, or an export's). at: the map time to stamp, if not the project's.
   function layoutInfo(m, at) {
     m = m || map;
-    var ctr = m.getCenter(), nb = M.numbering(P), notes = nb.order.map(function (id, i) { var s = sourceOf(id); return { n: i + 1, id: id, short: shortPlain(s.fields), full: fnPlain(s.fields, locsFor(id)) }; });
+    var ctr = m.getCenter(), nb = M.numbering(P), notes = nb.order.map(function (id, i) { var s = sourceOf(id); var empty = built(s.fields, '').empty || !shortPlain(s.fields).replace(/[\s.]/g, ''); return { n: i + 1, id: id, short: empty ? '[source not filled in yet]' : shortPlain(s.fields), full: empty ? '[source not filled in yet]' : fnPlain(s.fields, locsFor(id)) }; });
     var corners = [[0, 0], [frameW, 0], [frameW, frameH], [0, frameH]].map(function (p) { var ll = m.unproject(p); return [ll.lng, ll.lat]; });
     var t = at === undefined ? P.time.at : at, r = M.timeRange(P), stamp = '';
-    if (P.time.stamp && P.time.mode !== 'all' && t != null && r) stamp = M.fmtWhen(t, r.minute ? 'minute' : 'day');
+    if (P.time.stamp && P.time.mode !== 'all' && t != null && r) stamp = whenText(t, r);
     return { mpp: M.metresPerPixel(ctr.lat, m.getZoom()), bearing: m.getBearing(), notes: notes, legend: M.legendItems(P, catName), attr: attribution(), dark: isDark(), corners: corners, center: [ctr.lng, ctr.lat], stamp: stamp };
   }
   function locsFor(id) { var o = []; M.shown(P).forEach(function (f) { f.cites.forEach(function (c) { var l = (c.loc || '').trim(); if (c.src === id && l && o.indexOf(l) < 0) o.push(l); }); }); return o.join('; '); }
@@ -6093,8 +6313,8 @@ var MAPC = (function () {
         r.forEach(function (c, i) { var p = px(c); if (i) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]); }); ctx.closePath();
       });
       ctx.fillStyle = light ? '#F3F1EC' : '#3A4A55'; ctx.fill('evenodd');
-      ctx.beginPath(); world().borders.forEach(function (r) { r.forEach(function (c, i) { var p = px(c); if (i) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]); }); });
-      ctx.strokeStyle = light ? 'rgba(60,70,80,.45)' : 'rgba(200,215,225,.35)'; ctx.lineWidth = Math.max(0.6, 0.7 * u); ctx.stroke();
+      if (P.base.modern !== 'physical') ctx.beginPath(); if (P.base.modern !== 'physical') world().borders.forEach(function (r) { r.forEach(function (c, i) { var p = px(c); if (i) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]); }); });
+      if (P.base.modern !== 'physical') { ctx.strokeStyle = light ? 'rgba(60,70,80,.45)' : 'rgba(200,215,225,.35)'; ctx.lineWidth = Math.max(0.6, 0.7 * u); ctx.stroke(); }
       var fp = info.corners.map(px), fw = Math.max.apply(null, fp.map(function (p) { return p[0]; })) - Math.min.apply(null, fp.map(function (p) { return p[0]; }));
       ctx.lineWidth = 2 * u; ctx.strokeStyle = '#E8473F'; ctx.fillStyle = 'rgba(232,71,63,0.18)';
       if (fw < 7 * u) { var c0 = px(info.center); ctx.beginPath(); ctx.arc(c0[0], c0[1], 5 * u, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
@@ -6133,7 +6353,9 @@ var MAPC = (function () {
       ctx.beginPath(); if (it.kind === 'ring') ctx.ellipse(cx, cy, rw / 2, rh / 2, 0, 0, Math.PI * 2); else ctx.rect(rx, ry, rw, rh);
       ctx.fillStyle = 'rgba(' + cc[0] + ',' + cc[1] + ',' + cc[2] + ',' + Math.max(0.15, it.fill == null ? 0.25 : it.fill) + ')'; ctx.fill();
       if (it.hatch) { var hk = 'hatch-legend-' + col; SPECS[hk] = { t: 'hatch', color: col }; var hi = getImage(hk, 2, false); if (hi) { ctx.save(); ctx.clip(); var pat = ctx.createPattern(hi.canvas, 'repeat'); ctx.fillStyle = pat; ctx.fillRect(rx, ry, rw, rh); ctx.restore(); } }
-      ctx.strokeStyle = col; ctx.lineWidth = 1.8 * u; if (it.dash === 'dash') ctx.setLineDash([5 * u, 3 * u]); else if (it.dash === 'dot') ctx.setLineDash([1 * u, 3 * u]); ctx.stroke();
+      if (it.edge === 'soft') { ctx.save(); ctx.clip(); ctx.shadowColor = col; ctx.shadowBlur = 5 * u; ctx.strokeStyle = col; ctx.lineWidth = 3 * u; ctx.stroke(); ctx.restore(); }
+      else if (it.edge === 'band') { ctx.save(); ctx.clip(); ctx.globalAlpha = 0.5; ctx.strokeStyle = col; ctx.lineWidth = 8 * u; ctx.stroke(); ctx.restore(); ctx.strokeStyle = col; ctx.lineWidth = 1 * u; ctx.stroke(); }
+      else { ctx.strokeStyle = col; ctx.lineWidth = 1.8 * u; if (it.dash === 'dash') ctx.setLineDash([5 * u, 3 * u]); else if (it.dash === 'dot') ctx.setLineDash([1 * u, 3 * u]); ctx.stroke(); }
     } else if (it.kind === 'label') { ctx.fillStyle = col; ctx.font = '700 ' + (h * 0.5) + 'px ' + FONT; ctx.textAlign = 'center'; ctx.fillText('Aa', cx, cy + h * 0.17); }
     ctx.restore();
   }
@@ -6162,7 +6384,7 @@ var MAPC = (function () {
   function kindIcon(f) {
     var col = M.colorOf(P, f);
     if (f.kind === 'symbol') { var s = symThumb(M.sidcOf(f.sym), f.sym); return s ? '<img alt="" src="' + s + '">' : ''; }
-    var g = { point: '<circle cx="12" cy="12" r="6" fill="' + col + '" stroke="#fff" stroke-width="1.5"/>', label: '<text x="12" y="17" text-anchor="middle" font-size="15" font-weight="700" fill="' + col + '">T</text>', line: '<path d="M3 17c5-1 4-9 9-10s4 6 9 4" fill="none" stroke="' + col + '" stroke-width="2.6" stroke-linecap="round"/>', arrow: '<path d="M2 15c5 0 8-2 10-5l-2-2 10-3-2 10-2-2c-3 4-8 6-14 6z" fill="' + col + '"/>', area: '<path d="M4 7l8-3 8 5-2 10-11 1z" fill="' + col + '" fill-opacity=".35" stroke="' + col + '" stroke-width="2"/>', ring: '<circle cx="12" cy="12" r="8" fill="' + col + '" fill-opacity=".15" stroke="' + col + '" stroke-width="2" stroke-dasharray="3 2"/>' }[f.kind];
+    var g = { point: '<circle cx="12" cy="12" r="6" fill="' + col + '" stroke="#fff" stroke-width="1.5"/>', label: '<text x="12" y="17" text-anchor="middle" font-size="15" font-weight="700" fill="' + col + '">T</text>', line: '<path d="M3 17c5-1 4-9 9-10s4 6 9 4" fill="none" stroke="' + col + '" stroke-width="2.6" stroke-linecap="round"/>', arrow: '<path d="M2 15c5 0 8-2 10-5l-2-2 10-3-2 10-2-2c-3 4-8 6-14 6z" fill="' + col + '"/>', area: '<path d="M4 7l8-3 8 5-2 10-11 1z" fill="' + col + '" fill-opacity=".35" stroke="' + col + '" stroke-width="2"/>', ring: '<circle cx="12" cy="12" r="8" fill="' + col + '" fill-opacity=".15" stroke="' + col + '" stroke-width="2" stroke-dasharray="3 2"/>', image: '<path d="M3 6l5-2 8 2 5-2v14l-5 2-8-2-5 2z" fill="#C9B58A" stroke="#6B5A3A" stroke-width="1.4" stroke-linejoin="round"/><path d="M6 15l3-4 3 3 2-2 4 4" fill="none" stroke="#6B5A3A" stroke-width="1.4"/>' }[f.kind];
     return '<svg viewBox="0 0 24 24" width="22" height="22">' + g + '</svg>';
   }
   function featureListHTML() {
@@ -6204,19 +6426,21 @@ var MAPC = (function () {
     h.push('<fieldset><legend>Appearance</legend>');
     if (k === 'symbol') h.push(symbolSection(f));
     if (k === 'point') h.push(field('Shape', sel('style.marker', M.MARKERS, s.marker)) + field('Color', swatchRow('style.color', s.color, layerOf(f.layer).color)) + field('Size', rng('style.size', s.size, 0.4, 3, 0.1)));
-    if (k === 'label') h.push(field('Color', swatchRow('style.color', s.color, layerOf(f.layer).color)) + '<div class="fgrid">' + field('Style', sel('style.labelStyle', [['halo', 'Halo'], ['box', 'Boxed'], ['plain', 'Plain']], s.labelStyle)) + field('Size', rng('style.labelSize', s.labelSize, 0.5, 4, 0.1)) + '</div>');
+    if (k === 'label') h.push(field('Color', swatchRow('style.color', s.color, layerOf(f.layer).color)) + '<div class="fgrid">' + field('Style', sel('style.labelStyle', [['halo', 'Halo'], ['box', 'Boxed'], ['plain', 'Plain'], ['region', 'Region (spaced capitals in its color)']], s.labelStyle)) + field('Size', rng('style.labelSize', s.labelSize, 0.5, 4, 0.1)) + '</div>');
     if (k === 'line') h.push(field('Color', swatchRow('style.color', s.color, layerOf(f.layer).color)) + '<div class="fgrid">' + field('Width', rng('style.width', s.width, 0.5, 14, 0.5)) + field('Line', sel('style.dash', M.DASHES, s.dash)) + field('Arrowheads', sel('style.heads', [['none', 'None'], ['end', 'At the end'], ['both', 'Both ends']], s.heads)) + '</div>' + chk('style.smooth', s.smooth, 'Smooth into a curve'));
     if (k === 'arrow') h.push(field('Color', swatchRow('style.color', s.color, layerOf(f.layer).color)) + '<div class="fgrid">' + field('Width (km)', num('style.width', s.width, 'any', 0.05), 'Shaft width at the head, on the ground.') + field('Opacity', rng('style.fill', s.fill, 0.1, 1, 0.05)) + '</div><div class="row">' + chk('style.smooth', s.smooth, 'Smooth into a curve') + chk('style.hatch', s.hatch, 'Hatched') + chk('style.outline', s.outline, 'Outline') + '</div>');
-    if (k === 'area' || k === 'ring') h.push(field('Color', swatchRow('style.color', s.color, layerOf(f.layer).color)) + '<div class="fgrid">' + field('Fill', rng('style.fill', s.fill, 0, 1, 0.05)) + field('Edge width', rng('style.width', s.width, 0, 10, 0.5)) + field('Edge', sel('style.dash', M.DASHES, s.dash)) + '</div>' + chk('style.hatch', s.hatch, 'Hatched (for contested or claimed ground)'));
+    if (k === 'area' || k === 'ring') h.push(field('Color', swatchRow('style.color', s.color, layerOf(f.layer).color)) + '<div class="fgrid">' + field('Fill', rng('style.fill', s.fill, 0, 1, 0.05)) + field('Edge width', rng('style.width', s.width, 0, 10, 0.5)) + field('Edge', sel('style.dash', M.DASHES, s.dash)) + field('Edge look', sel('style.edge', M.EDGES, s.edge)) + '</div>' + chk('style.hatch', s.hatch, 'Hatched (for contested or claimed ground)'));
+    if (k === 'image') h.push(imageAppearance(f));
     h.push('</fieldset>');
     // position
     h.push('<fieldset><legend>Position</legend>');
     if (k === 'ring') h.push('<div class="fgrid">' + field('Center', '<input data-coords="1" value="' + esc(coordsText(f)) + '">') + field('Radius (km)', num('radius', f.radius, 'any', 0.001)) + '</div>');
+    else if (k === 'image') h.push(field('Corners, one per line', '<textarea class="mono" data-coords="1" rows="5">' + esc(coordsText(f)) + '</textarea>', 'Top left, top right, bottom right, bottom left of the picture. ' + (f.style.locked ? 'Unlock it to drag the corners on the map.' : 'On the map, drag a corner to stretch the scan onto the ground; hold Shift while dragging to turn and scale it without changing its shape. Drag inside the picture to move it.')));
     else if (f.coords.length === 1) h.push(field('Coordinates', '<input data-coords="1" value="' + esc(coordsText(f)) + '">', 'Decimal (latitude first), DMS, or MGRS. Change the format under Basemap.'));
     else h.push(field('Points, one per line', '<textarea class="mono" data-coords="1" rows="' + Math.min(8, f.coords.length + 1) + '">' + esc(coordsText(f)) + '</textarea>', (k === 'area' ? 'Outline' : 'Length') + ': ' + (k === 'area' ? M.lengthKm(f.coords.concat([f.coords[0]])) : M.lengthKm(f.coords)).toFixed(1) + ' km. On the map, drag a point to move it, drag a small dot to add one, double-click a point to remove it.'));
     h.push('<div id="coordErr" class="checks"></div></fieldset>');
     // label placement
-    if (k !== 'label') h.push('<details class="more"' + (ui.openLabel ? ' open' : '') + ' id="labelMore"><summary>Label placement</summary><div class="fgrid">' + field('Position', sel('style.labelPos', [['auto', 'Automatic'], ['right', 'Right'], ['left', 'Left'], ['top', 'Above'], ['bottom', 'Below'], ['center', 'Centered']], s.labelPos)) + field('Style', sel('style.labelStyle', [['halo', 'Halo'], ['box', 'Boxed'], ['plain', 'Plain']], s.labelStyle)) + field('Size', rng('style.labelSize', s.labelSize, 0.5, 3, 0.1)) + field('Nudge across', num('style.dx', s.dx, 1)) + field('Nudge down', num('style.dy', s.dy, 1)) + '</div></details>');
+    if (k !== 'label') h.push('<details class="more"' + (ui.openLabel ? ' open' : '') + ' id="labelMore"><summary>Label placement</summary><div class="fgrid">' + field('Position', sel('style.labelPos', [['auto', 'Automatic'], ['right', 'Right'], ['left', 'Left'], ['top', 'Above'], ['bottom', 'Below'], ['center', 'Centered'], ['none', 'Hidden (kept for the list and search)']], s.labelPos)) + field('Style', sel('style.labelStyle', [['halo', 'Halo'], ['box', 'Boxed'], ['plain', 'Plain'], ['region', 'Region (spaced capitals in its color)']], s.labelStyle)) + field('Size', rng('style.labelSize', s.labelSize, 0.5, 3, 0.1)) + field('Nudge across', num('style.dx', s.dx, 1)) + field('Nudge down', num('style.dy', s.dy, 1)) + '</div>' + chk('style.marks', s.marks, 'Show its footnote numbers by the label') + '</details>');
     // sources
     h.push('<fieldset><legend>Sources</legend>' + (f.cites.length ? '' : '<p class="hint">' + (k === 'label' ? 'Text that only names a place may not need a source.' : 'Every plotted place needs a source.') + '</p>'));
     f.cites.forEach(function (c, i) {
@@ -6314,11 +6538,18 @@ var MAPC = (function () {
   function setCoords(f, el) {
     var lines = el.value.split('\n').map(function (s) { return s.trim(); }).filter(Boolean), pts = [], errs = [];
     lines.forEach(function (l, i) { var r = M.parseCoord(l, MG); if (r.error) errs.push((lines.length > 1 ? 'Line ' + (i + 1) + ': ' : '') + r.error); else pts.push([+r.lon.toFixed(7), +r.lat.toFixed(7)]); });
-    var need = f.kind === 'area' ? 3 : f.kind === 'line' || f.kind === 'arrow' ? 2 : 1;
-    if (!errs.length && pts.length < need) errs.push('This needs at least ' + need + ' points.');
+    var need = f.kind === 'image' ? 4 : f.kind === 'area' ? 3 : f.kind === 'line' || f.kind === 'arrow' ? 2 : 1;
+    if (!errs.length && f.kind === 'image' && pts.length !== 4) errs.push('Give four corners: top left, top right, bottom right, bottom left.');
+    else if (!errs.length && pts.length < need) errs.push('This needs at least ' + need + ' points.');
     $('coordErr').innerHTML = errs.map(function (x) { return '<div class="fix">' + esc(x) + '</div>'; }).join('');
     if (errs.length) return;
     commit(function () { f.coords = need === 1 ? pts.slice(0, 1) : pts; }); sync();
+  }
+  function imageAppearance(f) {
+    var src = f.img || '', kind = /^https:/.test(src) ? 'A linked picture' : /^data:/.test(src) ? 'An embedded picture (' + (src.length * 0.75 / 1048576).toFixed(1) + ' MB)' : 'No picture yet';
+    return '<p class="hint">' + esc(kind) + '. Lower the opacity to see the basemap through it while you fit it.</p>' + field('Opacity', rng('style.opacity', f.style.opacity, 0.05, 1, 0.05)) +
+      chk('style.locked', f.style.locked, 'Locked in place, so dragging on it moves the map') +
+      '<div class="row"><button class="btn small" data-fa="imgReplace">Replace the picture</button><button class="btn small" data-fa="imgRect"' + (f.style.locked ? ' disabled' : '') + '>Square up the corners</button><button class="btn small" data-fa="imgFit"' + (f.style.locked ? ' disabled' : '') + '>Fit to the view</button></div>';
   }
   $('spane').addEventListener('toggle', function (e) { if (e.target.id === 'labelMore') ui.openLabel = e.target.open; if (e.target.id === 'ampMore') ui.openAmp = e.target.open; }, true);
   $('spane').addEventListener('click', function (e) {
@@ -6334,6 +6565,9 @@ var MAPC = (function () {
     if (!f) return;
     if (a === 'zoom') zoomTo(f);
     if (a === 'del') deleteFeature(f.id);
+    if (a === 'imgReplace') return addImageDialog(f);
+    if (a === 'imgRect') { commit(function () { f.coords = squareUp(f.coords); }); sync(); return featureEditor(f); }
+    if (a === 'imgFit') { var asp = imgAspect(f); commit(function () { f.coords = fitCorners(asp); }); sync(); return featureEditor(f); }
     if (a === 'dup') { var c = JSON.parse(JSON.stringify(f)); c.id = M.nextId('f', P.features.map(function (x) { return x.id; })); var off = map ? (0.03 * 1000 / Math.pow(2, map.getZoom())) : 0.01; c.coords = c.coords.map(function (p) { return [p[0] + off, p[1] - off * 0.6]; }); commit(function () { P.features.splice(P.features.indexOf(f) + 1, 0, c); }); ui.sel = c.id; sync(); renderSide(); }
     if (a === 'picker') { ui.picker = !ui.picker; featureEditor(f); if (ui.picker) { var q2 = $('symq'); if (q2) q2.focus(); } }
     if (a === 'cite') { commit(function () { f.cites.push({ src: ui.lastSrc && sourceOf(ui.lastSrc) ? ui.lastSrc : P.sources[0].id, loc: '', quote: '', note: '' }); }); sync(); featureEditor(f); }
@@ -6446,7 +6680,9 @@ var MAPC = (function () {
       '<div class="basepick">' + BASEMAPS.map(function (d) { return '<label><input type="radio" name="bs" data-bf="style" value="' + d[0] + '"' + (b.style === d[0] ? ' checked' : '') + '><span><b>' + esc(d[1]) + '</b><small>' + esc(d[2]) + '</small></span></label>'; }).join('') + '</div>' +
       (b.style === 'custom' ? '<div class="fgrid">' + field('Style URL', '<input data-bf="customUrl" value="' + esc(b.customUrl) + '" placeholder="https://…/style.json">', 'A MapLibre or Mapbox GL style JSON.', true) + field('Attribution', '<input data-bf="customAttr" value="' + esc(b.customAttr) + '" placeholder="© Provider · © OpenStreetMap contributors">', 'Printed on every image. The provider\'s terms say what it must be.', true) + '</div>' : '') +
       '<div class="fgrid">' + field('Tone', '<select data-bf="tone">' + opts(M.TONES, b.tone) + '</select>') + field('Basemap labels', '<select data-bf="labels">' + opts([['all', 'All'], ['places', 'Places only'], ['major', 'Countries and cities'], ['none', 'None']], b.labels) + '</select>') + '</div>' +
-      '<label class="check"><input type="checkbox" data-bf="borders"' + (b.borders ? ' checked' : '') + '> Strong borders</label>' +
+      field('Modern features', '<select data-bf="modern">' + opts([['all', 'Show them'], ['physical', 'Physical only: water, land and terrain']], b.modern) + '</select>', 'For historical maps. Hides today\'s roads, cities, borders and land use. Rivers, lakes and coastlines are still today\'s.') +
+      (b.modern === 'physical' ? '' : '<label class="check"><input type="checkbox" data-bf="borders"' + (b.borders ? ' checked' : '') + '> Strong borders</label>') +
+      '<fieldset><legend>Historical maps</legend><p class="hint">Bring in a scanned old map and stretch it onto the ground, or the borders of any of ' + M.HB_YEARS.length + ' moments from 123,000 BCE to 2010 as areas you can edit.</p><div class="row"><button class="btn" id="addScan">Add a scanned map…</button><button class="btn" id="addBorders">Add historical borders…</button></div></fieldset>' +
       '<fieldset><legend>Realism</legend>' +
       '<label class="check"><input type="checkbox" data-bf="relief"' + (b.relief ? ' checked' : '') + '> Shaded relief (Natural Earth, for country and region scale)</label>' + (b.relief ? field('Relief strength', '<input type="range" data-bf="reliefOpacity" min="0.1" max="1" step="0.05" value="' + b.reliefOpacity + '">') : '') +
       '<label class="check"><input type="checkbox" data-bf="hillshade"' + (b.hillshade ? ' checked' : '') + '> Hillshade from elevation (any scale)</label>' + (b.hillshade ? field('Hillshade strength', '<input type="range" data-bf="hillshadeOpacity" min="0.1" max="1" step="0.05" value="' + b.hillshadeOpacity + '">') : '') +
@@ -6483,6 +6719,8 @@ var MAPC = (function () {
   $('spane').addEventListener('click', function (e) {
     if (ui.tab !== 'base') return; var t = e.target;
     if (t.id === 'placeGo') placeSearch();
+    if (t.id === 'addScan') addImageDialog();
+    if (t.id === 'addBorders') bordersDialog();
     if (t.id === 'gotoGo') { var r = M.parseCoord($('gotoQ').value, MG); if (r.error) return toast(r.error); map.flyTo({ center: [r.lon, r.lat], zoom: Math.max(map.getZoom(), 9) }); }
     var pl = t.closest('[data-place]'); if (pl) { var it = ui.places.items[+pl.dataset.place], bb = it.boundingbox && it.boundingbox.map(Number); if (bb && bb.every(isFinite)) map.fitBounds([[bb[2], bb[0]], [bb[3], bb[1]]], { padding: 40, maxZoom: 13, duration: 700 }); else map.flyTo({ center: [+it.lon, +it.lat], zoom: 10 }); }
   });
@@ -6526,18 +6764,18 @@ var MAPC = (function () {
 
   function dateHint(v) {
     if (!v) return 'Give a date to use the time bar.';
-    var w = M.parseWhen(v); return w ? 'Read as ' + M.fmtWhen(w.t, w.prec) + (w.prec === 'minute' ? ' (24-hour clock)' : '') : 'Not readable yet. Try 06 June 1944, 1944-06-06 06:30 or June 1944.';
+    var w = M.parseWhen(v); return w ? 'Read as ' + M.fmtWhen(w.t, w.prec, P.time.era, w.approx) + (w.approx ? ' (approximate)' : '') + (w.prec === 'minute' ? ' (24-hour clock)' : '') : 'Not readable yet. Try 06 June 1944, 1944-06-06 06:30, June 1944, c. 1450 or 44 BC.';
   }
-  $('spane').addEventListener('change', function (e) { var t = e.target; if (!t.dataset.tf) return; P.time[t.dataset.tf] = t.type === 'checkbox' ? t.checked : t.value; touch(); drawOverlay(); if (ui.tab === 'views') paneViews(); });
+  $('spane').addEventListener('change', function (e) { var t = e.target; if (!t.dataset.tf) return; P.time[t.dataset.tf] = t.type === 'checkbox' ? t.checked : t.value; touch(); drawOverlay(); timebar(); if (ui.tab === 'views') paneViews(); });
 
   // --- views and video ---
-  function viewTimeText(v) { var r = M.timeRange(P); return v.at == null ? 'No date' : M.fmtWhen(v.at, r && r.minute ? 'minute' : 'day'); }
+  function viewTimeText(v) { var r = M.timeRange(P); return v.at == null ? 'No date' : whenText(v.at, r); }
   function paneViews() {
     var r = M.timeRange(P), tm = P.time, vd = P.video;
     var h = '<h2>Views &amp; video</h2>';
-    h += '<fieldset><legend>Time</legend>' + (r ? '<p class="hint">' + r.n + ' feature' + (r.n === 1 ? ' has' : 's have') + ' a date, from ' + esc(M.fmtWhen(r.min, r.minute ? 'minute' : 'day')) + ' to ' + esc(M.fmtWhen(r.max, r.minute ? 'minute' : 'day')) + '. Use the bar under the map to pick a date or play through them. <b>Up to</b> keeps each feature from its date on (until its end date, if it has one). <b>On the date</b> shows only what falls on that day.</p>' +
+    h += '<fieldset><legend>Time</legend>' + (r ? '<p class="hint">' + r.n + ' feature' + (r.n === 1 ? ' has' : 's have') + ' a date, from ' + esc(whenText(r.min, r)) + ' to ' + esc(whenText(r.max, r)) + '. Use the bar under the map to pick a date or play through them. <b>Up to</b> keeps each feature from its date on (until its end date, if it has one). <b>On the date</b> shows only what falls on that day.</p>' +
       '<div class="fgrid two">' + field('Playing through takes (seconds)', '<input type="number" data-tf2="play" min="2" max="120" step="1" value="' + tm.play + '">') + field('Show', '<select data-tf2="mode">' + opts([['all', 'All dates'], ['upto', 'Up to the date'], ['during', 'On the date']], tm.mode) + '</select>') + '</div>' +
-      '<label class="check"><input type="checkbox" data-tf="stamp"' + (tm.stamp ? ' checked' : '') + '> Print the date on the image</label>' : '<p class="hint">Give features a date (in each feature\'s form, or a Date column in a CSV) to show them over time. A time bar appears under the map.</p>') + '</fieldset>';
+      '<label class="check"><input type="checkbox" data-tf="stamp"' + (tm.stamp ? ' checked' : '') + '> Print the date on the image</label>' + field('Years before the common era', '<select data-tf="era">' + opts([['BCE', '500 BCE, 500 CE'], ['BC', '500 BC, AD 500']], tm.era) + '</select>', 'Dates are shown as written in your sources. The tool does not convert between the Julian and Gregorian calendars.') : '<p class="hint">Give features a date (in each feature\'s form, or a Date column in a CSV) to show them over time. A time bar appears under the map.</p>') + '</fieldset>';
     h += '<fieldset><legend>Saved views</legend><p class="hint">A view is a camera position: where the map looks, its zoom, rotation and tilt, and, if you like, a date. A video holds on each view, then flies to the next.</p>';
     h += P.views.length ? '<div style="display:grid;gap:8px">' + P.views.map(function (v, i) {
       return '<div class="viewrow" data-vi="' + i + '"><div class="top"><span class="num">' + (i + 1) + '</span><input class="inp" data-vf="name" value="' + esc(v.name) + '" aria-label="View name"></div><div class="row"><button class="btn small" data-va="go">Go</button><button class="btn small" data-va="set" title="Replace with the map as it is now">Update to the map now</button><span class="spacer"></span><button class="btn small" data-va="up" aria-label="Move up">↑</button><button class="btn small" data-va="down" aria-label="Move down">↓</button><button class="btn small danger" data-va="del" aria-label="Delete view">×</button></div>' +
@@ -6666,6 +6904,7 @@ var MAPC = (function () {
   }
   function readFile(file) {
     if (!file) return;
+    if (/^image\//.test(file.type || '') || /\.(png|jpe?g|webp|gif)$/i.test(file.name || '')) return addImageFile(file);
     var r = new FileReader(), name = file.name || 'file';
     r.onload = function () { handleText(String(r.result), name); };
     r.onerror = function () { toast('That file could not be read.'); };
@@ -6753,6 +6992,8 @@ var MAPC = (function () {
     if (a === 'notes') download(slug(P.meta.title) + '-footnotes.md', footnotesMD(), 'text/markdown');
     if (a === 'copynotes') copyNotes();
     if (a === 'geojson') exportGeoJSON();
+    if (a === 'scan') addImageDialog();
+    if (a === 'borders') bordersDialog();
     if (a === 'help') help();
   });
   $('undoBtn').addEventListener('click', undo); $('redoBtn').addEventListener('click', redo);
@@ -6763,10 +7004,140 @@ var MAPC = (function () {
       '<li><b>Choose the look.</b> Under <b>Basemap</b>: a style, a tone such as Muted or Dark ops so your data stands out, label density, and realism: shaded relief, hillshade, or satellite imagery.</li>' +
       '<li><b>Add features.</b> Use the tools on the map: marker (M), military symbol (S), text (T), line (L), bold arrow (A), area (G), range ring (R). Or <b>Add at coordinates</b> (decimal, DMS or MGRS), or open a CSV or GeoJSON. Drag to move; drag a point of a line or area to reshape it.</li>' +
       '<li><b>Cite everything.</b> Add sources under <b>Sources</b> (the OSINT Citation Generator\'s fields), then cite them from each feature with the page or timestamp. Footnote numbers appear beside labels, and <b>File → Copy footnotes</b> gives the matching list for your post.</li>' +
+      '<li><b>Go back in time.</b> Under <b>Basemap → Historical maps</b>, stretch a scanned old map onto the ground, or add the borders of any of 54 moments from 123,000 BCE to 2010. <b>Modern features → Physical only</b> clears today\'s roads, cities and borders. Dates can be written 44 BC or c. 1450.</li>' +
       '<li><b>Check, then export.</b> The <b>Check</b> tab lists anything unsourced. <b>Export image</b> renders the finished map at full size, the map alone, or only your data on a transparent background for video editing.</li></ol>' +
       '<p class="hint">Your map is kept in this browser. Save it with <b>File → Save map</b> (Ctrl+S) to keep it safe or move it. Keys: Esc cancels, Enter finishes a line, Delete removes the selected feature, Ctrl+Z undoes.</p>' +
       '<p class="hint">Code and documentation: <a href="' + TOOL_URL + '" target="_blank" rel="noopener">' + TOOL_URL + '</a></p>', actions: [{ label: 'Close', primary: true }] });
   }
+
+  // ---------- scanned maps ----------
+  var imgTarget = null;
+  $('imgIn').addEventListener('change', function () { var f = this.files[0]; this.value = ''; if (f) addImageFile(f, imgTarget); imgTarget = null; });
+  function addImageDialog(target) {
+    imgTarget = target || null;
+    ui.imgModal = modal({ title: target ? 'Replace the picture' : 'Add a scanned map', body: '<p>Choose a scan of an old map, then stretch it onto the ground by dragging its corners. PNG, JPEG or WebP; very large scans are reduced to 4,096 pixels on the long side.</p>' +
+      '<div class="row"><button class="btn primary" id="imgPick">Choose a picture file…</button></div>' +
+      '<label class="field"><span>Or link to a picture</span><input id="imgUrl" placeholder="https://tile.loc.gov/image-services/iiif/…/full/pct:50/0/default.jpg"><small>The site must let other pages draw its pictures. Library IIIF image links usually do. A linked picture is not saved inside your map file.</small></label><div class="checks" id="imgErr"></div>' +
+      '<p class="hint">Use a scan you may publish. Most maps published before 1931 are public domain in the US, but some libraries set terms for their scans. You will cite the scan as a source.</p>',
+      actions: [{ label: 'Cancel', fn: function () { imgTarget = null; } }, { label: 'Use the link', fn: function (m) {
+        var u = (m.querySelector('#imgUrl').value || '').trim();
+        if (!/^https:\/\/\S+$/i.test(u)) { m.querySelector('#imgErr').innerHTML = '<div class="fix">Paste a full link starting with https://</div>'; return false; }
+        m.querySelector('#imgErr').innerHTML = '<div class="note">Checking the picture…</div>';
+        var im = new Image(); im.crossOrigin = 'anonymous';
+        im.onload = function () { placeImage(u, im.naturalWidth / im.naturalHeight, imgTarget, u.split('/').pop()); imgTarget = null; };
+        im.onerror = function () { m.querySelector('#imgErr').innerHTML = '<div class="fix">That picture could not be loaded here. The site may not let other pages draw it. Download it and choose the file instead.</div>'; };
+        im.src = u; return false;
+      } }],
+      onOpen: function (m, close) { m.querySelector('#imgPick').addEventListener('click', function () { $('imgIn').click(); }); } });
+  }
+  function addImageFile(file, target) {
+    var r = new FileReader();
+    r.onerror = function () { toast('That picture could not be read.'); };
+    r.onload = function () {
+      var url = String(r.result), im = new Image();
+      im.onerror = function () { toast('That file is not a picture this browser can open.'); };
+      im.onload = function () {
+        var w = im.naturalWidth, h = im.naturalHeight, max = 4096, out = url;
+        if (Math.max(w, h) > max || !/^data:image\/(png|jpeg|webp)/.test(url)) {
+          var sc = Math.min(1, max / Math.max(w, h)), cv = canvas(Math.round(w * sc), Math.round(h * sc)), cx = cv.getContext('2d');
+          cx.drawImage(im, 0, 0, cv.width, cv.height); out = /png|webp/.test(url.slice(0, 20)) ? cv.toDataURL('image/png') : cv.toDataURL('image/jpeg', 0.9);
+          if (out.length > url.length && Math.max(w, h) <= max) out = url;
+          if (sc < 1) toast('The scan was reduced to ' + cv.width + ' × ' + cv.height + ' pixels.');
+        }
+        placeImage(out, w / h, target, file.name || 'scan');
+      };
+      im.src = url;
+    };
+    r.readAsDataURL(file);
+  }
+  // Four corners (top left, top right, bottom right, bottom left) filling most of the frame at the picture's shape.
+  function fitCorners(aspect) {
+    var a = aspect > 0 ? aspect : 1.4, mw = frameW * 0.72, mh = frameH * 0.72, w = Math.min(mw, mh * a), h = w / a, cx = frameW / 2, cy = frameH / 2;
+    return [[cx - w / 2, cy - h / 2], [cx + w / 2, cy - h / 2], [cx + w / 2, cy + h / 2], [cx - w / 2, cy + h / 2]].map(function (p) { var ll = map.unproject(p); return [+ll.lng.toFixed(7), +ll.lat.toFixed(7)]; });
+  }
+  function imgAspect(f) { if (f.style.aspect > 0) return f.style.aspect; var c = f.coords.map(M.merc); return Math.hypot(c[1][0] - c[0][0], c[1][1] - c[0][1]) / Math.max(1e-9, Math.hypot(c[3][0] - c[0][0], c[3][1] - c[0][1])); }
+  // Makes the corners a true rectangle again, keeping the picture's center, turn and size.
+  function squareUp(cs) {
+    var p = cs.map(M.merc), cx = (p[0][0] + p[1][0] + p[2][0] + p[3][0]) / 4, cy = (p[0][1] + p[1][1] + p[2][1] + p[3][1]) / 4;
+    var tx = (p[1][0] - p[0][0] + p[2][0] - p[3][0]) / 2, ty = (p[1][1] - p[0][1] + p[2][1] - p[3][1]) / 2, W = Math.hypot(tx, ty) || 1, ux = tx / W, uy = ty / W;
+    var H = (Math.hypot(p[3][0] - p[0][0], p[3][1] - p[0][1]) + Math.hypot(p[2][0] - p[1][0], p[2][1] - p[1][1])) / 2, vx = uy, vy = -ux;
+    return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(function (s) { return M.unmerc([cx + s[0] * ux * W / 2 + s[1] * vx * H / 2, cy + s[0] * uy * W / 2 + s[1] * vy * H / 2]).map(function (t) { return +t.toFixed(7); }); });
+  }
+  function placeImage(src, aspect, target, name) {
+    if (ui.imgModal) { ui.imgModal.close(); ui.imgModal = null; }
+    if (target && featOf(target.id)) {
+      commit(function () { target.img = src; target.style.aspect = +aspect.toFixed(5); });
+      ui.sel = target.id; sync(); renderSide(); return toast('Picture replaced.');
+    }
+    var f;
+    commit(function () {
+      var lid = P.layers.filter(function (l) { return l.name === 'Scanned maps'; })[0];
+      if (!lid) { lid = { id: M.nextId('l', P.layers.map(function (l) { return l.id; })), name: 'Scanned maps', color: '#8A96A3', visible: true, legend: false }; P.layers.push(lid); }
+      var s = { id: M.nextId('s', P.sources.map(function (x) { return x.id; })), fields: { type: 'archival', titleStyle: 'quotes', title: '', descType: 'Historical Map', quals: ['scan'], access: [], file: name || '', url: /^https:/.test(src) ? src : '' } };
+      P.sources.push(s);
+      f = M.normalize({ layers: P.layers, features: [{ id: M.nextId('f', P.features.map(function (x) { return x.id; })), kind: 'image', layer: lid.id, coords: fitCorners(aspect), label: '', img: src, style: { opacity: 0.8, aspect: +aspect.toFixed(5), labelPos: 'none' }, cites: [{ src: s.id, loc: '', quote: '', note: '' }] }] }, TEXT_KEYS).project.features[0];
+      f.img = src; P.features.push(f);
+    });
+    ui.sel = f.id; ui.tab = 'features'; setTool('select'); sync(); renderSide();
+    modal({ title: 'Now fit the scan to the ground', body: '<ol><li>Lower the <b>Opacity</b> so you can see the basemap through it.</li><li>Drag each corner until a landmark on the scan (a river mouth, a cape, a town) sits on the same place on the basemap. Hold <b>Shift</b> while dragging a corner to turn and scale the whole picture without changing its shape. Drag inside it to move it.</li><li>Tick <b>Locked in place</b> when it fits, so dragging moves the map again.</li><li>Fill in its source: the library or archive, the map\'s title, maker and date, and the catalog link. A draft source is already cited.</li></ol><p class="hint">Old maps are rarely accurate everywhere. Fit the part your story is about.</p>', actions: [{ label: 'OK', primary: true }] });
+  }
+
+  // ---------- historical borders ----------
+  function bordersDialog() {
+    var Y = M.HB_YEARS, tAt = P.time.mode !== 'all' && P.time.at != null ? new Date(P.time.at).getUTCFullYear() : null, def = 1815;
+    if (tAt != null) { Y.forEach(function (y) { var a = y < 0 ? y + 1 : y; if (a <= tAt) def = y; }); }
+    modal({ title: 'Add historical borders', body: '<p>Territories from <a href="https://github.com/aourednik/historical-basemaps" target="_blank" rel="noopener">Historical Basemaps</a> by A. Ourednik, added as areas you can restyle, relabel and edit. Each is cited to the dataset, and each says how precise its border is.</p>' +
+      '<div class="fgrid">' + field('Moment', '<select id="hbYear">' + opts(Y.map(function (y) { return [String(y), M.hbYearText(y)]; }), String(def)) + '</select>') + field('Area', '<select id="hbScope">' + opts([['view', 'What is in the frame now'], ['world', 'The whole world (slower)']], 'view') + '</select>') + field('Detail', '<select id="hbDetail">' + opts([['std', 'Suits this zoom'], ['fine', 'Finer (more points)']], 'std') + '</select>') + '</div>' +
+      '<label class="check"><input type="checkbox" id="hbDated" checked> Date them, from this moment until the next one in the dataset, so they change with the time bar</label>' +
+      '<label class="check"><input type="checkbox" id="hbSoft" checked> Draw approximate borders soft</label>' +
+      '<label class="check"><input type="checkbox" id="hbLabels" checked> Name each territory on the map</label>' +
+      (P.base.modern === 'physical' ? '' : '<label class="check"><input type="checkbox" id="hbPhys" checked> Hide modern roads, cities and borders on the basemap</label>') +
+      '<p class="hint">Its author calls the dataset a work in progress, drawn for world and continent scale: check borders against your other sources. Before about 1648 a border is often a convention for a zone of control. The data is licensed GPL-3.0; the credit is added to the image.</p><p class="hint" id="hbMsg"></p>',
+      actions: [{ label: 'Cancel' }, { label: 'Add borders', primary: true, fn: function (m) {
+        var year = +m.querySelector('#hbYear').value, scope = m.querySelector('#hbScope').value, fine = m.querySelector('#hbDetail').value === 'fine';
+        var o = { dated: m.querySelector('#hbDated').checked, soft: m.querySelector('#hbSoft').checked, labels: m.querySelector('#hbLabels').checked, phys: m.querySelector('#hbPhys') && m.querySelector('#hbPhys').checked };
+        var msg = m.querySelector('#hbMsg'), btns = m.querySelectorAll('button'), file = M.hbFile(year);
+        btns.forEach(function (b) { b.disabled = true; }); msg.textContent = 'Downloading ' + file + '…';
+        fetchFirst(M.hbUrls(file)).then(function (gj) {
+          msg.textContent = 'Building the territories…';
+          setTimeout(function () {
+            var n = addBorders(gj, year, scope, fine, o);
+            if (!n) { msg.textContent = 'No territories from ' + M.hbYearText(year) + ' fall in the frame. Zoom out, or choose the whole world.'; btns.forEach(function (b) { b.disabled = false; }); return; }
+            var mb = document.querySelector('.modal-back'); if (mb) mb.remove();
+          }, 30);
+        }, function () { msg.textContent = 'The borders could not be downloaded. Check the connection and try again.'; btns.forEach(function (b) { b.disabled = false; }); });
+        return false;
+      } }] });
+  }
+  function fetchFirst(urls) {
+    var i = 0;
+    function next() { if (i >= urls.length) return Promise.reject(new Error('unreachable')); var u = urls[i++]; return fetch(u, { credentials: 'omit' }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).catch(next); }
+    return next();
+  }
+  function addBorders(gj, year, scope, fine, o) {
+    var Y = M.HB_YEARS, next = Y[Y.indexOf(year) + 1], c = map.getCenter(), bb = null;
+    if (scope === 'view') { var b = map.getBounds(), dx = (b.getEast() - b.getWest()) * 0.15, dy = (b.getNorth() - b.getSouth()) * 0.15; bb = [b.getWest() - dx, b.getSouth() - dy, b.getEast() + dx, b.getNorth() + dy]; }
+    var tol = Math.max(40, M.metresPerPixel(c.lat, map.getZoom()) * (fine ? 0.6 : 1.6));
+    var file = M.hbFile(year), page = M.hbPage(file), added = 0, nextAt = null;
+    commit(function () {
+      var s = P.sources.filter(function (x) { return x.fields.url === page; })[0];
+      if (!s) { s = { id: M.nextId('s', P.sources.map(function (x) { return x.id; })), fields: M.hbSource(file, fmtToday()) }; P.sources.push(s); }
+      var name = 'Borders, ' + M.hbYearText(year), lay = P.layers.filter(function (l) { return l.name === name; })[0];
+      if (!lay) { lay = { id: M.nextId('l', P.layers.map(function (l) { return l.id; })), name: name, color: '#8A96A3', visible: true, legend: false }; P.layers.push(lay); }
+      var r = M.hbToFeatures(gj, { year: year, next: next, bbox: bb, tol: tol, layerId: lay.id, src: s.id, soft: o.soft, dated: o.dated });
+      if (!o.labels) r.features.forEach(function (f) { f.style.labelPos = 'none'; });
+      var fs = placeImported(r.features); P.features = P.features.concat(fs); added = fs.length;
+      if (!added) { P.layers.splice(P.layers.indexOf(lay), 1); if (!P.features.some(function (f) { return f.cites.some(function (x) { return x.src === s.id; }); })) P.sources.splice(P.sources.indexOf(s), 1); }
+      if (added && o.phys) P.base.modern = 'physical';
+      nextAt = next;
+    });
+    if (!added) return 0;
+    if (o.phys) setBase();
+    ui.tab = 'features'; ui.sel = null; sync(); renderSide();
+    toast('Added ' + added + ' territor' + (added === 1 ? 'y' : 'ies') + ' from ' + M.hbYearText(year) + (o.dated && nextAt != null ? '. On the time bar they show until the next moment, ' + M.hbYearText(nextAt) + '.' : '.'));
+    return added;
+  }
+  function fmtToday() { var d = new Date(); return (d.getDate() < 10 ? '0' : '') + d.getDate() + ' ' + M.fmtWhen(Date.UTC(2000, d.getMonth(), 1), 'month').split(' ')[0] + ' ' + d.getFullYear(); }
 
   // ---------- exporting images ----------
   $('exportBtn').addEventListener('click', exportDialog);
@@ -6793,7 +7164,7 @@ var MAPC = (function () {
       if (!map || !baseStyle) return reject(new Error('the map is not ready'));
       var k = W / frameW, ratio = Math.min(6, Math.max(1, Math.ceil(k))), dark = isDark();
       var host = $('exportHost'); host.innerHTML = ''; var div = document.createElement('div'); div.style.width = frameW + 'px'; div.style.height = frameH + 'px'; host.appendChild(div);
-      var fc = computeFC(true), style;
+      var rr = computeRender(true), fc = rr.fc, style;
       if (kind === 'overlay') style = { version: 8, sources: { om: { type: 'geojson', data: fc } }, layers: dataLayers(U(), P.layout, true) };
       else style = withData(baseStyle, fc, U(), true);
       var em, done = false, timer;
@@ -6813,7 +7184,7 @@ var MAPC = (function () {
           em.remove(); host.innerHTML = ''; resolve(out);
         } catch (e) { try { em.remove(); } catch (x) { /* gone */ } host.innerHTML = ''; reject(e); }
       }
-      em.once('load', function () { em.once('idle', function () { requestAnimationFrame(finish); }); em.triggerRepaint(); });
+      em.once('load', function () { if (kind !== 'overlay') syncImages(em, rr.images); em.once('idle', function () { requestAnimationFrame(finish); }); em.triggerRepaint(); });
       timer = setTimeout(function () { finish(); }, 30000);
       em.on('error', function () { /* a tile failed; carry on */ });
     });
@@ -6864,7 +7235,8 @@ var MAPC = (function () {
       var first = plan.at(0), lastSig = null, at0 = first.time === undefined ? P.time.at : first.time;
       var timed = M.timeRange(P) && (plan.timeOnly || P.views.some(function (v) { return v.at != null; })) ? true : P.time.mode !== 'all';
       var modeNow = P.time.mode === 'all' && timed ? 'upto' : P.time.mode, saved = { mode: P.time.mode, at: P.time.at };
-      function fcAt(t) { P.time.mode = modeNow; var fc = computeFC(true, timed ? t : undefined); P.time.mode = saved.mode; return fc; }
+      function rAt(t) { P.time.mode = modeNow; var r = computeRender(true, timed ? t : undefined); P.time.mode = saved.mode; return r; }
+      function fcAt(t) { return rAt(t).fc; }
       var style = withData(baseStyle, fcAt(at0), U(), true);
       var em = new ML.Map({ container: div, style: style, center: first.center, zoom: zoomFor(first.zoom, frameW), bearing: first.bearing, pitch: first.pitch, pixelRatio: k, interactive: false, attributionControl: false, fadeDuration: 0, maxCanvasSize: [16384, 16384], canvasContextAttributes: { preserveDrawingBuffer: true, antialias: true } });
       em.on('styleimagemissing', function (e) { addMissing(em, e.id, ratio, dark); });
@@ -6874,14 +7246,14 @@ var MAPC = (function () {
       function sigOf(t) { return timed ? M.atTime(Object.assign({}, P, { time: Object.assign({}, P.time, { mode: modeNow }) }), t).map(function (f) { return f.id; }).join(',') : 'all'; }
       function cleanup() { try { em.remove(); } catch (e) { /* gone */ } host.innerHTML = ''; P.time.mode = saved.mode; P.time.at = saved.at; }
       var lastCam = '';
-      return new Promise(function (res) { em.once('load', res); }).then(settled).then(function () {
+      return new Promise(function (res) { em.once('load', res); }).then(function () { syncImages(em, rAt(at0).images); }).then(settled).then(function () {
         var i = 0;
         function frame() {
           if (job.cancel) { cleanup(); try { enc.close(); } catch (e) { /* closed */ } return null; }
           if (encErr) { cleanup(); throw encErr; }
           if (i >= n) return enc.flush().then(function () { muxer.finalize(); cleanup(); return { blob: new Blob([muxer.target.buffer], { type: pick.kind === 'mp4' ? 'video/mp4' : 'video/webm' }), ext: pick.kind }; });
           var cam = plan.at(i / fps), t = cam.time === undefined ? P.time.at : cam.time, changed = false;
-          var sig = sigOf(t); if (sig !== lastSig) { em.getSource('om').setData(fcAt(t)); lastSig = sig; changed = true; }
+          var sig = sigOf(t); if (sig !== lastSig) { var rt = rAt(t); em.getSource('om').setData(rt.fc); syncImages(em, rt.images); lastSig = sig; changed = true; }
           var camKey = [cam.center[0].toFixed(7), cam.center[1].toFixed(7), cam.zoom.toFixed(5), (cam.bearing || 0).toFixed(3), (cam.pitch || 0).toFixed(3)].join(',');
           if (camKey !== lastCam) { em.jumpTo({ center: cam.center, zoom: zoomFor(cam.zoom, frameW), bearing: cam.bearing || 0, pitch: cam.pitch || 0 }); lastCam = camKey; changed = true; }
           var ready = changed || i === 0 ? settled() : Promise.resolve(false);
@@ -6902,7 +7274,7 @@ var MAPC = (function () {
   }
 
   // ---------- boot ----------
-  renderTools(); undoButtons(); status(); isDarkCache = isDark();
+  renderTools(); undoButtons(); status(); isDarkCache = isDark(); restoreImgs();
   fitFrame(); setBase(true); renderSide();
   window.OSINT_MAP = { project: function () { return P; }, map: function () { return map; }, renderImage: renderImage, renderVideo: renderVideo, plan: function () { return videoPlanNow(); }, load: function (raw) { openProject(raw); }, handleText: handleText };
 })();

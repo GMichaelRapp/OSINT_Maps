@@ -2,6 +2,15 @@
 
 Changes to the OSINT Map Builder, newest first.
 
+## 2.1 — 23 October 2026
+
+- **Scanned maps:** add an old map from a file or a link and stretch it onto the ground by dragging its corners (Shift-drag to turn and scale it), with opacity, locking, dates and a draft archival source to fill in. Scans are saved inside map files and kept in the browser, and appear in image and video exports.
+- **Historical borders:** add any of 54 snapshots from Historical Basemaps (123,000 BCE to 2010) as editable areas, limited to the frame and simplified to the zoom, colored by ruling power, styled by border precision, dated to change with the time bar, and cited to the exact file and commit. Downloaded on request; not bundled.
+- **Physical only:** a basemap setting that hides modern roads, cities, borders and land use.
+- **Territory styles:** atlas-band and soft edges for areas, a spaced-capitals region label style, hidden labels, and footnote numbers that can be turned off per feature.
+- **Dates:** years before the common era (44 BC, 500 BCE, -0499), AD and CE, and approximate dates (c. 1450). The time bar steps by years or months over long spans and shows dates no more precisely than it steps. Choice of BCE or BC.
+- **Check tab:** flags a scanned map with no picture and one with no source.
+
 ## 2.0 — 23 October 2026
 
 - **Time:** features take a date (with an optional time of day) and an optional end date. A time bar under the map shows everything up to a date, or only what falls on it, and plays through the range. The date is printed on the image.

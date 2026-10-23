@@ -55,6 +55,7 @@ The values above are placeholders that show the form. Leave out anything you do 
 | `arrow` | A bold arrow | `style.width` in kilometres on the ground; `style.smooth` |
 | `area` | A polygon | `style.fill` (0 to 1); `style.hatch` (true for contested or claimed ground); `style.dash` for the edge |
 | `ring` | A range ring | `radius` in kilometres; `style.fill`; `style.dash` |
+| `image` | A scanned map | four `coords`: top left, top right, bottom right, bottom left; `img`: an `https://` link to the picture; `style.opacity` |
 
 Every feature has `id`, `kind`, `layer` (the `id` of a layer), `coords`, and optionally `label`, `date`, `end`, `desc`, `note`, `cites`, and `style.color` (a hex color; leave it out to use the layer's). `label` can hold a line break (`\n`). `style.labelPos` is `auto`, `right`, `left`, `top`, `bottom` or `center`.
 
@@ -98,7 +99,11 @@ The tool lists all 1,165 by name. If you are not sure of a code, use the nearest
 
 ## Dates
 
-`date` is when the feature becomes true and `end`, if any, when it stops. Write `06 June 1944`, `1944-06-06 06:30` (24-hour clock) or `June 1944`. Give a date only when a source states it; a date you inferred goes in the `note` with how you got it. Undated features show at every date. To open the map at a date, set `"time": { "mode": "upto", "at": null }` and the person will pick the date on the time bar.
+`date` is when the feature becomes true and `end`, if any, when it stops. Write `06 June 1944`, `1944-06-06 06:30` (24-hour clock), `June 1944`, `44 BC` or `500 BCE`, and put `c.` before a date your source gives as approximate. Give dates as the source does; do not convert between calendars. Give a date only when a source states it; a date you inferred goes in the `note` with how you got it. Undated features show at every date. To open the map at a date, set `"time": { "mode": "upto", "at": null }` and the person will pick the date on the time bar.
+
+## Historical territories
+
+For a territory, use an `area` with `style.edge` `band` (an atlas band), `soft` (a border your sources give only roughly) or `line`, and `style.labelStyle` `region`. A border is a claim like any other: cite the source that draws it, and say in the `note` how you traced it and how precise it is. Do not copy borders from a dataset or map you were not given.
 
 ## Views
 

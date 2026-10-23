@@ -13,8 +13,9 @@ It is one web page. There is nothing to install, no account, and no server. It i
 | Text | T | Names of rivers, regions or fronts that the basemap does not label |
 | Line | L | Routes, front lines, supply lines. Solid, dashed or dotted, with arrowheads |
 | Bold arrow | A | An axis of advance. Its width is set in kilometres, so it scales with the map |
-| Area | G | Occupied, claimed or contested ground. Filled, outlined, or hatched |
+| Area | G | Occupied, claimed or contested ground, or a historical territory. Filled, outlined, hatched, with an atlas band or a soft edge |
 | Range ring | R | A weapon's reach or a radius from a point, drawn true to the ground |
+| Scanned map | | An old map from a file or a link, stretched onto the ground by its corners |
 
 Military symbols take the full set of choices: affiliation (friend, hostile, neutral, unknown, suspect, assumed friend, pending), present or planned, echelon from team to command, headquarters and task force marks, and the text amplifiers (unique designation, higher formation, equipment type, reinforced or reduced, direction of movement and others). A 2525D or 2525E numeric code can be typed in directly.
 
@@ -57,13 +58,15 @@ Open `index.html` in any current browser, or use the hosted copy linked in this 
 
 ### Time
 
-Give a feature a **Date**, and an end date under **Shown until** if it stops being true (a unit that moved on, an area retaken). Dates can be written `06 June 1944`, `1944-06-06 06:30`, `6 June 1944 0630`, `June 1944` or `1944`; the form says how it read yours. Once any feature has a date, a time bar appears under the map:
+Give a feature a **Date**, and an end date under **Shown until** if it stops being true (a unit that moved on, an area retaken). Dates can be written `06 June 1944`, `1944-06-06 06:30`, `6 June 1944 0630`, `June 1944`, `1944`, `c. 1450`, `44 BC`, `500 BCE`, `AD 9` or, in ISO form, `-0499` (which, as in ISO 8601, is 500 BCE); the form says how it read yours. `c.`, `ca.` or `circa` marks a date as approximate. Dates are taken as written: the tool does not convert between the Julian and Gregorian calendars, so give dates as your sources do and say which calendar in the feature's note where it matters. Once any feature has a date, a time bar appears under the map:
 
 | Setting | What the map shows |
 |---|---|
 | All dates | Everything, as if there were no dates |
 | Up to | Everything that has started by the chosen date and not ended |
 | On the date | Only what falls on the chosen day (or hour, for times) |
+
+The bar steps by minutes, days, months or years to suit the span, and shows the date no more precisely than it steps. **Views & video** sets whether years before the common era print as `500 BCE` or `500 BC`.
 
 Features without a date are always shown. Play runs through the whole range in the time set under **Views & video**. The chosen date is printed on the image, in the corner you choose under **Layout**, so each export is labeled with the moment it shows.
 
@@ -83,6 +86,36 @@ The result is an MP4 (H.264) where the browser can encode one, and WebM otherwis
 
 Each layer is a line in the key, named after the layer. Layers higher in the list are drawn on top. Military symbols are listed in the key symbol by symbol ("Hostile armor", "Friendly infantry airborne"); give a symbol a **Name in the key** to group symbols your way, as the example does with "Allied airborne division".
 
+## Historical maps
+
+**Basemap → Historical maps** (or the File menu) offers two ways to show the past, and **Basemap → Modern features → Physical only** clears today's roads, cities, borders and land use off the basemap so they do not sit under 1680 borders. Rivers, lakes and coastlines are still today's, and some have moved a long way; say so where it matters.
+
+### Scanned maps
+
+**Add a scanned map** takes a PNG, JPEG or WebP file (scans over 4,096 pixels on the long side are reduced), or a link to a picture on a site that lets other pages draw it, as most library IIIF image servers do. The scan appears over the frame. Lower its **Opacity**, then drag its corners until landmarks on the scan sit on the same places on the basemap. Hold **Shift** while dragging a corner to turn and scale the whole picture without changing its shape, and drag inside it to move it. **Square up the corners** and **Fit to the view** start again. Tick **Locked in place** when it fits, so dragging on it moves the map.
+
+Four corners fit a scan the way you would pin a print to a wall map: well enough where the old map was surveyed well, and not everywhere. Fit the part your story is about.
+
+Each scan is cited like any other feature. Adding one creates a draft source (an archival source, kind *Historical Map*, qualified as a scan) for you to fill in with the library or archive, the map's title, maker and date, and the catalog link. Scanned maps are drawn under all other features, can take dates for the time bar, and are left out of the key. A scan chosen from a file is saved inside the map file and kept in the browser; a linked scan is loaded from its site each time.
+
+Use scans you may publish. Most maps published before 1931 are public domain in the US, but some libraries set terms for their scans.
+
+### Historical borders
+
+**Add historical borders** downloads one of 54 snapshots, from 123,000 BCE to 2010, from [Historical Basemaps](https://github.com/aourednik/historical-basemaps) by A. Ourednik, and adds its territories as areas you can restyle, rename, reshape or delete:
+
+- Only what is in the frame is added, unless you choose the whole world. Borders are simplified to suit the zoom.
+- Each territory is colored by the power that ruled it, so a colony shares its ruler's color, and named in spaced capitals. Territories with several parts are named once.
+- Each says how precise its border is. The dataset rates borders 1 (approximate), 2 (moderately precise) or 3 (determined by international law); approximate borders are drawn soft, and moderately precise ones dashed.
+- Each is cited to the dataset, the snapshot's file and the commit it came from, so the footnote points at exactly the data you used.
+- Dated, a snapshot shows from its year until the year before the next snapshot. Add two or more and the borders change as you move the time bar or play a video.
+
+Its author describes the dataset as a work in progress, drawn for world and continent scale, and asks users to check borders against other sources. Before about 1648, a border is often a convention for a zone of control, and neighbouring peoples' lands overlap. The data is licensed GPL-3.0. The tool downloads it when you ask and does not include it; the credit "Historical borders: Historical Basemaps by A. Ourednik (GPL-3.0)" is added to every image that shows it. A map file or GeoJSON export holding the borders holds GPL-3.0 data.
+
+### Territory styles
+
+Any area can take an **Edge look**: a line, an atlas band (a wide translucent strip inside the border, as in printed historical atlases), or a soft edge for a border that is only approximate. **Region** label style sets a name in spaced capitals in a darker shade of the area's color. A label can be **Hidden**, which keeps the name for the feature list and search, and a label's footnote numbers can be turned off.
+
 ## Bringing data in
 
 **File → Open a file**, or drag a file onto the page:
@@ -93,6 +126,7 @@ Each layer is a line in the key, named after the layer. Layers higher in the lis
 | A CSV or TSV | Its rows become features, after you match the columns |
 | GeoJSON | Its points, lines and polygons are added as a new layer |
 | A source list (`.json`) from the OSINT Citation Generator | Its sources are added to the source list |
+| A picture (PNG, JPEG, WebP) | It is added as a scanned map |
 
 ### Columns a CSV can have
 
@@ -140,16 +174,17 @@ The tool will be at `https://<your-username>.github.io/<repository>/`.
 
 ## Your data
 
-Your map stays in your browser. The page asks other sites only for the basemap you choose (map tiles, fonts and icons from OpenFreeMap, or your own style's provider), for the relief, hillshade or imagery you turn on, and for place searches, which go to Nominatim one search at a time. The Plain outline basemap needs no connection at all.
+Your map stays in your browser. The page asks other sites only for the basemap you choose (map tiles, fonts and icons from OpenFreeMap, or your own style's provider), for the relief, hillshade or imagery you turn on, and for place searches, which go to Nominatim one search at a time. Adding historical borders downloads the snapshot you choose from jsDelivr (or GitHub if that fails), and a linked scan loads from its site. The Plain outline basemap needs no connection at all.
 
 ## Tests
 
-`node Tests/run.js` checks coordinate reading, geometry, symbol codes, the example, footnotes, CSV and GeoJSON reading, basemap restyling, dates and the time filter, and video flight paths. It needs Node 18 or later and nothing else, and it runs on GitHub on every push.
+`node Tests/run.js` checks coordinate reading, geometry, symbol codes, the example, footnotes, CSV and GeoJSON reading, basemap restyling, dates (including years before the common era) and the time filter, video flight paths, historical borders, scanned maps and territory styles. It needs Node 18 or later and nothing else, and it runs on GitHub on every push.
 
 ## Credits and license
 
 - The citation formatter, the source types and the description library are taken from the [OSINT Citation Generator](https://github.com/gmichaelrapp/OSINT_Cites) v3.2.1.
 - Maps: [MapLibre GL JS](https://maplibre.org/) 5.24.0 (BSD-3-Clause). Military symbols: [milsymbol](https://github.com/spatialillusions/milsymbol) 3.0.4 (MIT), with symbol names from [mil-std-2525](https://github.com/spatialillusions/mil-std-2525) (MIT). MGRS: [mgrs](https://github.com/proj4js/mgrs) 2.2.0 (MIT). Video files: [mp4-muxer](https://github.com/Vanilagy/mp4-muxer) 5.2.2 and [webm-muxer](https://github.com/Vanilagy/webm-muxer) 5.1.4 (MIT). Outlines: [Natural Earth](https://www.naturalearthdata.com/) (public domain). See `THIRD-PARTY-NOTICES.md`.
+- Historical borders, downloaded on request and not included: [Historical Basemaps](https://github.com/aourednik/historical-basemaps) by A. Ourednik (GPL-3.0).
 - Basemap data © OpenStreetMap contributors, tiles by OpenFreeMap and OpenMapTiles. Their attribution is printed on every image.
 - Code: MIT License (`LICENSE-MIT`)
 - OSINT Style Guide content: the citation rules, description library, and qualifier and access lists, under Creative Commons Attribution 4.0 International (`LICENSE-CC-BY-4.0`)

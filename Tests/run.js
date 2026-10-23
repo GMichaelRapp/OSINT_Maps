@@ -139,5 +139,64 @@ near(fly(0.5).bearing, -5, 1e-6, 'rotation takes the short way round');
 const old = M.normalize(Object.assign({}, ex, { format: 1, views: undefined, time: undefined }), T.TEXT_KEYS);
 ok(!old.error && old.project.views.length === 0 && old.project.time.mode === 'all', 'a version 1 map file still opens');
 
+// ---- 10. Dates before the common era, and approximate dates ----
+const yr = (x) => new Date(M.parseWhen(x).t).getUTCFullYear();
+eq(yr('44 BC'), -43, '44 BC is astronomical year -43');
+eq(yr('500 BCE'), -499, '500 BCE is astronomical year -499');
+eq(yr('-0499'), -499, 'ISO years are astronomical');
+eq(yr('1 BC'), 0, '1 BC is year zero');
+eq(yr('AD 9'), 9, 'AD before the year'); eq(yr('9 CE'), 9, 'CE after the year');
+eq(M.parseWhen('15 March 44 BC').prec, 'day', 'a day before the common era');
+eq(M.parseWhen('c. 1450').approx, true, 'c. marks an approximate date');
+eq(M.fmtWhen(M.parseWhen('ca. 323 BCE').t, 'year', 'BCE', true), 'c. 323 BCE', 'approximate BCE dates print');
+eq(M.fmtWhen(M.parseWhen('500').t, 'year', 'BC'), 'AD 500', 'early CE years print with their era');
+ok(M.parseWhen('44') === null, 'a bare two-digit number is not taken as a year');
+ok(M.parseWhen('29 February 1900') === null && M.parseWhen('29 February 2000'), 'leap years follow the Gregorian rule');
+ok(M.parseWhen('333 BCE').t < M.parseWhen('331 BC').t, 'BCE dates order correctly');
+const longR = { min: M.parseWhen('333 BCE').t, max: M.parseWhen('201 BCE').t, prec: 'day' };
+eq(M.barPrec(longR), 'month', 'over a long span the time bar shows months, not days');
+eq(M.barPrec({ min: M.parseWhen('5000 BCE').t, max: M.parseWhen('1492').t, prec: 'day' }), 'year', 'over millennia it shows years');
+
+// ---- 11. Historical borders ----
+eq([M.hbFile(-323), M.hbFile(1492), M.hbYearText(-323)], ['world_bc323.geojson', 'world_1492.geojson', '323 BCE'], 'snapshot file names and years');
+ok(M.HB_YEARS.length === 54 && M.HB_YEARS[0] === -123000 && M.HB_YEARS[M.HB_YEARS.length - 1] === 2010, 'all 54 snapshots are listed');
+ok(M.hbUrls('world_1492.geojson').every((u) => u.indexOf(M.HB_COMMIT) > 0), 'downloads are pinned to one commit');
+const sq = (x, y, d) => [[x, y], [x + d, y], [x + d, y + d], [x, y + d], [x, y]];
+const hb = { type: 'FeatureCollection', features: [
+  { properties: { NAME: 'Alpha', SUBJECTO: 'Alpha', BORDERPRECISION: 1 }, geometry: { type: 'MultiPolygon', coordinates: [[sq(0, 0, 4)], [sq(10, 0, 1)]] } },
+  { properties: { NAME: 'Beta', SUBJECTO: 'Alpha', BORDERPRECISION: 3 }, geometry: { type: 'MultiPolygon', coordinates: [[sq(40, 40, 2)]] } },
+  { properties: { NAME: null }, geometry: null }] };
+let hr = M.hbToFeatures(hb, { year: -323, next: -300, layerId: 'l1', src: 's1', soft: true, dated: true });
+eq(hr.features.length, 3, 'each part of a territory becomes an area');
+eq(hr.features.filter((f) => f.style.labelPos !== 'none').map((f) => f.label), ['Alpha', 'Beta'], 'only the largest part of a territory is labeled');
+eq([hr.features[0].date, hr.features[0].end], ['323 BCE', '301 BCE'], 'a snapshot is dated until the year before the next one');
+eq([hr.features[0].style.edge, hr.features[2].style.edge], ['soft', 'line'], 'approximate borders are soft, legal ones are lines');
+eq(hr.features[0].style.color, hr.features[2].style.color, 'territories under the same power share a color');
+ok(/precision 1 of 3 \(approximate\)/.test(hr.features[0].note), 'each territory says how precise its border is');
+eq(hr.features[2].desc, 'Under Alpha', 'a subject territory names its ruler');
+hr = M.hbToFeatures(hb, { year: 1492, bbox: [-1, -1, 20, 20], layerId: 'l1' });
+eq(hr.features.length, 2, 'only territories in the frame are added');
+const wiggly = []; for (let i = 0; i <= 200; i++) wiggly.push([i * 0.01, Math.sin(i / 3) * 0.00001]);
+ok(M.simplifyRing(wiggly, 100).length < 10, 'borders are simplified to the zoom');
+const hs = M.hbSource('world_bc323.geojson', '23 October 2026');
+eq(O.toMarkdown(O.build(M.sourceState(T.TYPES, T.TEXT_KEYS, hs, '')).seg).indexOf('[GIS Dataset; world_bc323.geojson; commit da7a4b7]') > 0, true, 'the borders are cited to the dataset and file');
+
+// ---- 12. Scanned maps and territory styles ----
+const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+const corners = [[0, 10], [10, 10], [10, 0], [0, 0]];
+let ip = M.normalize({ layers: [{ id: 'l1' }], features: [{ id: 'f1', kind: 'image', layer: 'l1', coords: corners, img: png, cites: [{ src: 's1' }] }, { id: 'f2', kind: 'image', layer: 'l1', coords: corners.slice(0, 3), img: png }, { id: 'f3', kind: 'image', layer: 'l1', coords: corners, img: 'javascript:alert(1)' }], sources: [{ id: 's1', fields: { type: 'archival', title: 'Map' } }] }, T.TEXT_KEYS).project;
+eq(ip.features.map((f) => f.id), ['f1', 'f3'], 'a scanned map needs four corners');
+eq([ip.features[0].img === png, ip.features[1].img], [true, ''], 'only pictures and https links are kept');
+const ir = M.render(ip, {});
+eq([ir.images.length, ir.images[0].coords], [1, corners], 'the map draws the picture at its corners');
+ok(M.audit(ip, O, T.TYPES, T.TEXT_KEYS).rows.some((x) => x.where === 'f3' && /no picture/.test(x.msg)), 'a scanned map without a picture is flagged');
+eq(M.legendItems(ip, () => '').length, 0, 'scanned maps stay out of the key');
+ok(!('img' in M.toGeoJSON(ip).features[0].properties.osint_map), 'GeoJSON export leaves the picture out');
+const ccw = [[0, 0], [2, 0], [2, 2], [0, 2]];
+const band = M.render({ layers: [{ id: 'l1', visible: true }], features: [{ id: 'a', kind: 'area', layer: 'l1', coords: ccw, style: { edge: 'band', width: 2 }, cites: [] }], layout: {}, sources: [] }, {}).fc.features.find((f) => f.properties.g === 'band');
+eq(band.properties.off, -3, 'an atlas band sits inside the area');
+const phys = M.restyle({ version: 8, sources: {}, layers: [{ id: 'water', type: 'fill', 'source-layer': 'water', paint: {} }, { id: 'road', type: 'line', 'source-layer': 'transportation', paint: {} }, { id: 'label_city', type: 'symbol', 'source-layer': 'place', paint: {} }, { id: 'b', type: 'line', 'source-layer': 'boundary', paint: {} }] }, { modern: 'physical' });
+eq(phys.layers.map((l) => l.layout.visibility || 'visible'), ['visible', 'none', 'none', 'none'], 'physical only keeps water and hides roads, places and borders');
+
 console.log((failed ? failed + ' failed, ' : '') + passed + ' passed');
 process.exit(failed ? 1 : 0);
