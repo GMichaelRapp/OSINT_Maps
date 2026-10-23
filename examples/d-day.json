@@ -1,0 +1,812 @@
+{
+ "app": "OSINT Map Builder",
+ "format": 2,
+ "meta": {
+  "title": "D-Day: The Normandy Landings",
+  "dek": "Assault divisions on 6 June 1944 and the German divisions facing them",
+  "byline": "Example map built with the OSINT Map Builder",
+  "credit": "",
+  "date": "Positions are approximate"
+ },
+ "view": {
+  "center": [
+   -0.79,
+   49.385
+  ],
+  "zoom": 8.5,
+  "bearing": 0,
+  "pitch": 0
+ },
+ "base": {
+  "style": "liberty",
+  "tone": "muted",
+  "labels": "places",
+  "borders": false,
+  "relief": false,
+  "imagery": "",
+  "hillshade": false,
+  "coords": "dd"
+ },
+ "layout": {
+  "preset": "substack-wide",
+  "theme": "dark",
+  "title": true,
+  "titlePos": "tl",
+  "legend": true,
+  "legendPos": "tr",
+  "legendTitle": "Key",
+  "symbolKey": true,
+  "sources": "short",
+  "markers": true,
+  "scale": true,
+  "north": true,
+  "credit": true,
+  "textScale": 1,
+  "symbolScale": 1
+ },
+ "layers": [
+  {
+   "id": "l1",
+   "name": "Allied assault divisions",
+   "color": "#2F6FDE"
+  },
+  {
+   "id": "l2",
+   "name": "Allied airborne divisions",
+   "color": "#2F6FDE"
+  },
+  {
+   "id": "l3",
+   "name": "German divisions",
+   "color": "#D7263D"
+  },
+  {
+   "id": "l4",
+   "name": "Seaborne landings",
+   "color": "#2F6FDE"
+  }
+ ],
+ "features": [
+  {
+   "id": "f1",
+   "kind": "arrow",
+   "layer": "l4",
+   "coords": [
+    [
+     -1.03,
+     49.6
+    ],
+    [
+     -1.12,
+     49.5
+    ],
+    [
+     -1.175,
+     49.425
+    ]
+   ],
+   "label": "UTAH",
+   "note": "Arrow drawn by the map maker toward the beach the source names.",
+   "style": {
+    "width": 2.6,
+    "smooth": true,
+    "fill": 0.88,
+    "outline": true,
+    "labelStyle": "box",
+    "labelPos": "center"
+   },
+   "cites": [
+    {
+     "src": "s1",
+     "loc": "",
+     "quote": "",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "f2",
+   "kind": "arrow",
+   "layer": "l4",
+   "coords": [
+    [
+     -0.84,
+     49.56
+    ],
+    [
+     -0.855,
+     49.46
+    ],
+    [
+     -0.87,
+     49.38
+    ]
+   ],
+   "label": "OMAHA",
+   "note": "Arrow drawn by the map maker toward the beach the source names.",
+   "style": {
+    "width": 2.6,
+    "smooth": true,
+    "fill": 0.88,
+    "outline": true,
+    "labelStyle": "box",
+    "labelPos": "center"
+   },
+   "cites": [
+    {
+     "src": "s1",
+     "loc": "",
+     "quote": "",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "f3",
+   "kind": "arrow",
+   "layer": "l4",
+   "coords": [
+    [
+     -0.53,
+     49.53
+    ],
+    [
+     -0.55,
+     49.43
+    ],
+    [
+     -0.565,
+     49.355
+    ]
+   ],
+   "label": "GOLD",
+   "note": "Arrow drawn by the map maker toward the beach the source names.",
+   "style": {
+    "width": 2.6,
+    "smooth": true,
+    "fill": 0.88,
+    "outline": true,
+    "labelStyle": "box",
+    "labelPos": "center"
+   },
+   "cites": [
+    {
+     "src": "s1",
+     "loc": "",
+     "quote": "",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "f4",
+   "kind": "arrow",
+   "layer": "l4",
+   "coords": [
+    [
+     -0.39,
+     49.53
+    ],
+    [
+     -0.41,
+     49.43
+    ],
+    [
+     -0.43,
+     49.345
+    ]
+   ],
+   "label": "JUNO",
+   "note": "Arrow drawn by the map maker toward the beach the source names.",
+   "style": {
+    "width": 2.6,
+    "smooth": true,
+    "fill": 0.88,
+    "outline": true,
+    "labelStyle": "box",
+    "labelPos": "center"
+   },
+   "cites": [
+    {
+     "src": "s1",
+     "loc": "",
+     "quote": "",
+     "note": ""
+    },
+    {
+     "src": "s3",
+     "loc": "p. 72",
+     "quote": "",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "f5",
+   "kind": "arrow",
+   "layer": "l4",
+   "coords": [
+    [
+     -0.23,
+     49.5
+    ],
+    [
+     -0.26,
+     49.39
+    ],
+    [
+     -0.29,
+     49.3
+    ]
+   ],
+   "label": "SWORD",
+   "note": "Arrow drawn by the map maker toward the beach the source names.",
+   "style": {
+    "width": 2.6,
+    "smooth": true,
+    "fill": 0.88,
+    "outline": true,
+    "labelStyle": "box",
+    "labelPos": "center"
+   },
+   "cites": [
+    {
+     "src": "s1",
+     "loc": "",
+     "quote": "",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "f6",
+   "kind": "symbol",
+   "layer": "l1",
+   "coords": [
+    [
+     -1.26,
+     49.44
+    ]
+   ],
+   "label": "US 4th",
+   "note": "Placed by the map maker at the general position the source describes; the source gives no coordinates.",
+   "style": {
+    "size": 1,
+    "labelPos": "bottom"
+   },
+   "sym": {
+    "tpl": "S*G*UCI--------",
+    "affil": "F",
+    "status": "P",
+    "ech": "I",
+    "hq": "-",
+    "unique": "4",
+    "key": "Allied infantry division"
+   },
+   "cites": [
+    {
+     "src": "s1",
+     "loc": "",
+     "quote": "",
+     "note": ""
+    },
+    {
+     "src": "s2",
+     "loc": "p. 10",
+     "quote": "The 4th Division was to assault UTAH Beach at H Hour",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "f7",
+   "kind": "symbol",
+   "layer": "l1",
+   "coords": [
+    [
+     -0.975,
+     49.335
+    ]
+   ],
+   "label": "US 29th",
+   "note": "Placed by the map maker at the general position the source describes; the source gives no coordinates.",
+   "style": {
+    "size": 1,
+    "labelPos": "bottom"
+   },
+   "sym": {
+    "tpl": "S*G*UCI--------",
+    "affil": "F",
+    "status": "P",
+    "ech": "I",
+    "hq": "-",
+    "unique": "29",
+    "key": "Allied infantry division"
+   },
+   "cites": [
+    {
+     "src": "s1",
+     "loc": "",
+     "quote": "",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "f8",
+   "kind": "symbol",
+   "layer": "l1",
+   "coords": [
+    [
+     -0.8,
+     49.33
+    ]
+   ],
+   "label": "US 1st",
+   "note": "Placed by the map maker at the general position the source describes; the source gives no coordinates.",
+   "style": {
+    "size": 1,
+    "labelPos": "bottom"
+   },
+   "sym": {
+    "tpl": "S*G*UCI--------",
+    "affil": "F",
+    "status": "P",
+    "ech": "I",
+    "hq": "-",
+    "unique": "1",
+    "key": "Allied infantry division"
+   },
+   "cites": [
+    {
+     "src": "s1",
+     "loc": "",
+     "quote": "",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "f9",
+   "kind": "symbol",
+   "layer": "l1",
+   "coords": [
+    [
+     -0.6,
+     49.3
+    ]
+   ],
+   "label": "British 50th",
+   "note": "Placed by the map maker at the general position the source describes; the source gives no coordinates.",
+   "style": {
+    "size": 1,
+    "labelPos": "bottom"
+   },
+   "sym": {
+    "tpl": "S*G*UCI--------",
+    "affil": "F",
+    "status": "P",
+    "ech": "I",
+    "hq": "-",
+    "unique": "50",
+    "key": "Allied infantry division"
+   },
+   "cites": [
+    {
+     "src": "s1",
+     "loc": "",
+     "quote": "",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "f10",
+   "kind": "symbol",
+   "layer": "l1",
+   "coords": [
+    [
+     -0.445,
+     49.29
+    ]
+   ],
+   "label": "3rd Canadian",
+   "note": "Placed by the map maker at the general position the source describes; the source gives no coordinates.",
+   "style": {
+    "size": 1,
+    "labelPos": "bottom"
+   },
+   "sym": {
+    "tpl": "S*G*UCI--------",
+    "affil": "F",
+    "status": "P",
+    "ech": "I",
+    "hq": "-",
+    "unique": "3",
+    "key": "Allied infantry division"
+   },
+   "cites": [
+    {
+     "src": "s1",
+     "loc": "",
+     "quote": "",
+     "note": ""
+    },
+    {
+     "src": "s3",
+     "loc": "p. 72",
+     "quote": "",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "f11",
+   "kind": "symbol",
+   "layer": "l1",
+   "coords": [
+    [
+     -0.295,
+     49.25
+    ]
+   ],
+   "label": "British 3rd",
+   "note": "Placed by the map maker at the general position the source describes; the source gives no coordinates.",
+   "style": {
+    "size": 1,
+    "labelPos": "bottom"
+   },
+   "sym": {
+    "tpl": "S*G*UCI--------",
+    "affil": "F",
+    "status": "P",
+    "ech": "I",
+    "hq": "-",
+    "unique": "3",
+    "key": "Allied infantry division"
+   },
+   "cites": [
+    {
+     "src": "s1",
+     "loc": "",
+     "quote": "",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "f12",
+   "kind": "symbol",
+   "layer": "l2",
+   "coords": [
+    [
+     -1.25,
+     49.345
+    ]
+   ],
+   "label": "US 101st",
+   "note": "Placed by the map maker at the general position the source describes; the source gives no coordinates.",
+   "style": {
+    "size": 1,
+    "labelPos": "bottom"
+   },
+   "sym": {
+    "tpl": "S*G*UCIA-------",
+    "affil": "F",
+    "status": "P",
+    "ech": "I",
+    "hq": "-",
+    "unique": "101",
+    "key": "Allied airborne division"
+   },
+   "cites": [
+    {
+     "src": "s2",
+     "loc": "p. 7",
+     "quote": "the 101st Airborne Division would land southeast of Ste. Mère-Eglise",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "f13",
+   "kind": "symbol",
+   "layer": "l2",
+   "coords": [
+    [
+     -1.41,
+     49.405
+    ]
+   ],
+   "label": "US 82nd",
+   "note": "Placed by the map maker at the general position the source describes; the source gives no coordinates.",
+   "style": {
+    "size": 1,
+    "labelPos": "bottom"
+   },
+   "sym": {
+    "tpl": "S*G*UCIA-------",
+    "affil": "F",
+    "status": "P",
+    "ech": "I",
+    "hq": "-",
+    "unique": "82",
+    "key": "Allied airborne division"
+   },
+   "cites": [
+    {
+     "src": "s2",
+     "loc": "p. 10",
+     "quote": "establishing deep bridgeheads over the Merderet River",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "f14",
+   "kind": "symbol",
+   "layer": "l2",
+   "coords": [
+    [
+     -0.15,
+     49.2
+    ]
+   ],
+   "label": "British 6th",
+   "note": "Placed by the map maker at the general position the source describes; the source gives no coordinates.",
+   "style": {
+    "size": 1,
+    "labelPos": "bottom"
+   },
+   "sym": {
+    "tpl": "S*G*UCIA-------",
+    "affil": "F",
+    "status": "P",
+    "ech": "I",
+    "hq": "-",
+    "unique": "6",
+    "key": "Allied airborne division"
+   },
+   "cites": [
+    {
+     "src": "s3",
+     "loc": "p. 72",
+     "quote": "dropping east of the Orne to seize crossings over the Caen Canal",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "f15",
+   "kind": "symbol",
+   "layer": "l3",
+   "coords": [
+    [
+     -1.4,
+     49.53
+    ]
+   ],
+   "label": "709th",
+   "note": "Placed by the map maker at the general position the source describes; the source gives no coordinates.",
+   "style": {
+    "size": 1,
+    "labelPos": "bottom"
+   },
+   "sym": {
+    "tpl": "S*G*UCI--------",
+    "affil": "H",
+    "status": "P",
+    "ech": "I",
+    "hq": "-",
+    "unique": "709",
+    "key": "German infantry division"
+   },
+   "cites": [
+    {
+     "src": "s2",
+     "loc": "p. 6",
+     "quote": "",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "f16",
+   "kind": "symbol",
+   "layer": "l3",
+   "coords": [
+    [
+     -0.84,
+     49.245
+    ]
+   ],
+   "label": "352nd",
+   "note": "Placed by the map maker at the general position the source describes; the source gives no coordinates.",
+   "style": {
+    "size": 1,
+    "labelPos": "bottom"
+   },
+   "sym": {
+    "tpl": "S*G*UCI--------",
+    "affil": "H",
+    "status": "P",
+    "ech": "I",
+    "hq": "-",
+    "unique": "352",
+    "key": "German infantry division"
+   },
+   "cites": [
+    {
+     "src": "s1",
+     "loc": "",
+     "quote": "",
+     "note": ""
+    },
+    {
+     "src": "s2",
+     "loc": "p. 6",
+     "quote": "",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "f17",
+   "kind": "symbol",
+   "layer": "l3",
+   "coords": [
+    [
+     -0.47,
+     49.215
+    ]
+   ],
+   "label": "716th",
+   "note": "Placed by the map maker at the general position the source describes; the source gives no coordinates.",
+   "style": {
+    "size": 1,
+    "labelPos": "bottom"
+   },
+   "sym": {
+    "tpl": "S*G*UCI--------",
+    "affil": "H",
+    "status": "P",
+    "ech": "I",
+    "hq": "-",
+    "unique": "716",
+    "key": "German infantry division"
+   },
+   "cites": [
+    {
+     "src": "s2",
+     "loc": "p. 6",
+     "quote": "The 716th and 352d Divisions, disposed east and south of the Cotentin",
+     "note": ""
+    }
+   ]
+  }
+ ],
+ "sources": [
+  {
+   "id": "s1",
+   "fields": {
+    "type": "web",
+    "titleStyle": "quotes",
+    "authors": "Imperial War Museums",
+    "shortName": "Imperial War Museums",
+    "shortTitle": "D-Day Beaches",
+    "title": "What you Need to Know about the D-Day Beaches",
+    "location": "Imperial War Museums Website",
+    "descType": "Web Page",
+    "accessed": "23 October 2026",
+    "url": "https://www.iwm.org.uk/history/what-you-need-to-know-about-the-d-day-beaches",
+    "access": [],
+    "quals": []
+   }
+  },
+  {
+   "id": "s2",
+   "fields": {
+    "type": "report",
+    "titleStyle": "italics",
+    "authors": "Historical Division, War Department",
+    "shortName": "Historical Division",
+    "shortTitle": "Utah Beach to Cherbourg",
+    "title": "Utah Beach to Cherbourg (6 June–27 June 1944)",
+    "location": "American Forces in Action Series",
+    "descType": "Official History",
+    "descDetails": "HyperWar online edition",
+    "date": "1947",
+    "url": "https://www.ibiblio.org/hyperwar/USA/USA-A-Utah/index.html",
+    "access": [],
+    "quals": []
+   }
+  },
+  {
+   "id": "s3",
+   "fields": {
+    "type": "book",
+    "titleStyle": "italics",
+    "authors": "C.P. Stacey",
+    "shortTitle": "Victory Campaign",
+    "title": "The Victory Campaign: The Operations in North-West Europe, 1944–1945",
+    "descType": "Official History",
+    "descDetails": "Official History of the Canadian Army in the Second World War, Vol. III; HyperWar online edition",
+    "publisher": "Queen's Printer",
+    "date": "1966",
+    "url": "https://ibiblio.org/hyperwar/UN/Canada/CA/Victory/Victory-4.html",
+    "access": [],
+    "quals": []
+   }
+  }
+ ],
+ "views": [
+  {
+   "id": "v1",
+   "name": "The whole assault",
+   "center": [
+    -0.79,
+    49.385
+   ],
+   "zoom": 8.5,
+   "bearing": 0,
+   "pitch": 0,
+   "hold": 2.5,
+   "fly": 4
+  },
+  {
+   "id": "v2",
+   "name": "Utah and the American airborne drops",
+   "center": [
+    -1.27,
+    49.41
+   ],
+   "zoom": 9.3,
+   "bearing": 0,
+   "pitch": 30,
+   "hold": 3,
+   "fly": 4
+  },
+  {
+   "id": "v3",
+   "name": "Omaha",
+   "center": [
+    -0.88,
+    49.34
+   ],
+   "zoom": 9.9,
+   "bearing": 0,
+   "pitch": 30,
+   "hold": 3,
+   "fly": 3.5
+  },
+  {
+   "id": "v4",
+   "name": "The British and Canadian beaches",
+   "center": [
+    -0.4,
+    49.3
+   ],
+   "zoom": 9.5,
+   "bearing": -10,
+   "pitch": 20,
+   "hold": 3,
+   "fly": 4
+  },
+  {
+   "id": "v5",
+   "name": "Back to the whole assault",
+   "center": [
+    -0.79,
+    49.385
+   ],
+   "zoom": 8.5,
+   "bearing": 0,
+   "pitch": 0,
+   "hold": 2,
+   "fly": 4
+  }
+ ],
+ "gaps": [
+  "Positions are the map maker's placement from the sources' descriptions, not plotted coordinates."
+ ]
+}

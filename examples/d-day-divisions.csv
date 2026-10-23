@@ -1,0 +1,13 @@
+label,lat,lon,layer,sidc,source_id,locator
+US 4th,49.44,-1.26,Allied assault divisions,SFGPUCI----I---,s2,p. 10
+US 29th,49.335,-0.975,Allied assault divisions,SFGPUCI----I---,s1,
+US 1st,49.33,-0.8,Allied assault divisions,SFGPUCI----I---,s1,
+British 50th,49.3,-0.6,Allied assault divisions,SFGPUCI----I---,s1,
+3rd Canadian,49.29,-0.445,Allied assault divisions,SFGPUCI----I---,s3,p. 72
+British 3rd,49.25,-0.295,Allied assault divisions,SFGPUCI----I---,s1,
+US 101st,49.345,-1.25,Allied airborne divisions,SFGPUCIA---I---,s2,p. 7
+US 82nd,49.405,-1.41,Allied airborne divisions,SFGPUCIA---I---,s2,p. 10
+British 6th,49.2,-0.15,Allied airborne divisions,SFGPUCIA---I---,s3,p. 72
+709th,49.53,-1.4,German divisions,SHGPUCI----I---,s2,p. 6
+352nd,49.245,-0.84,German divisions,SHGPUCI----I---,s2,p. 6
+716th,49.215,-0.47,German divisions,SHGPUCI----I---,s2,p. 6
