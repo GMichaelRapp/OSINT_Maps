@@ -251,7 +251,7 @@ details.more[open] > summary { margin-bottom: 8px }
 <body>
 <header class="appbar">
   <div class="bar gut">
-    <div class="brand"><svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--accent)"/><path d="M6 10l7-3 6 3 7-3v15l-7 3-6-3-7 3z" fill="none" stroke="var(--accent-ink)" stroke-width="2" stroke-linejoin="round"/><circle cx="19" cy="14" r="2.6" fill="#F2A900"/></svg><span>OSINT Map Builder <small>v2.1</small></span></div>
+    <div class="brand"><svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--accent)"/><path d="M6 10l7-3 6 3 7-3v15l-7 3-6-3-7 3z" fill="none" stroke="var(--accent-ink)" stroke-width="2" stroke-linejoin="round"/><circle cx="19" cy="14" r="2.6" fill="#F2A900"/></svg><span>OSINT Map Builder <small>v2.2</small></span></div>
     <details class="menu" id="fileMenu"><summary class="btn">File</summary><div class="menu-pop" role="menu">
       <button data-act="new">New map</button>
       <button data-act="open">Open a file…<small>A map, a CSV, GeoJSON, or a Citation Generator source list</small></button>
@@ -4656,39 +4656,55 @@ var MAPC = (function () {
   function ringArea(r) { var P2 = r.map(merc), a = 0; for (var i = 0; i < P2.length - 1; i++) a += P2[i][0] * P2[i + 1][1] - P2[i + 1][0] * P2[i][1]; return a / 2; }
   function closeRing(cs) { var r = cs.slice(); if (r.length && (r[0][0] !== r[r.length - 1][0] || r[0][1] !== r[r.length - 1][1])) r.push(r[0].slice()); return r; }
   // A bold arrow (axis of advance) built around a path. widthKm is the shaft width at the head; the tail narrows to `tail` times that.
+  // A bold arrow (axis of advance) built around a path. widthKm is the shaft width at the head; the tail narrows to `tail` times that.
+  // The centerline is smoothed and resampled evenly so the edges stay clean through bends, and the head's barbs sweep back slightly.
   function boldArrow(cs, widthKm, o) {
     o = o || {};
     if (cs.length < 2) return null;
     var path = smoothLL(cs, o.smooth), P = path.map(merc), lat = path.reduce(function (s, c) { return s + c[1]; }, 0) / path.length;
     var w = Math.max(0.05, widthKm) * 1000 / Math.max(0.05, Math.cos(lat * D2R));
-    var headW = w * (o.head || 2.1), headL = w * (o.headLen || 1.7), tailF = o.tail == null ? 0.75 : o.tail;
+    var headW = w * (o.head || 2.3), headL = w * (o.headLen || 1.6), tailF = o.tail == null ? 0.7 : o.tail;
     var seg = [], tot = 0, i;
     for (i = 1; i < P.length; i++) { var l = Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]); seg.push(l); tot += l; }
     if (tot <= 0) return null;
-    headL = Math.min(headL, tot * 0.6);
-    var cut = tot - headL, pts = [P[0]], acc = 0, cutPt = null;
-    for (i = 0; i < seg.length; i++) {
-      if (acc + seg[i] >= cut) { var t = seg[i] ? (cut - acc) / seg[i] : 0; cutPt = [P[i][0] + (P[i + 1][0] - P[i][0]) * t, P[i][1] + (P[i + 1][1] - P[i][1]) * t]; break; }
-      acc += seg[i]; if (i + 1 < P.length - 1) pts.push(P[i + 1]);
-    }
-    if (!cutPt) cutPt = P[P.length - 2];
-    if (Math.hypot(cutPt[0] - pts[pts.length - 1][0], cutPt[1] - pts[pts.length - 1][1]) > 1e-6) pts.push(cutPt);
-    if (pts.length < 2) pts = [P[0], cutPt];
-    var dist2 = [0]; for (i = 1; i < pts.length; i++) dist2.push(dist2[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
-    var L = dist2[dist2.length - 1] || 1, left = [], right = [];
-    function nrm(a, b) { var dx = b[0] - a[0], dy = b[1] - a[1], d = Math.hypot(dx, dy) || 1; return [-dy / d, dx / d]; }
+    headL = Math.min(headL, tot * 0.55);
+    // points along the path at even spacing, up to where the head starts
+    function at(d) { var acc = 0; for (var j = 0; j < seg.length; j++) { if (acc + seg[j] >= d || j === seg.length - 1) { var t = seg[j] ? Math.min(1, (d - acc) / seg[j]) : 0; return [P[j][0] + (P[j + 1][0] - P[j][0]) * t, P[j][1] + (P[j + 1][1] - P[j][1]) * t]; } acc += seg[j]; } return P[P.length - 1]; }
+    var cut = tot - headL, step = Math.max(cut / 400, Math.min(w / 3, cut / 4)), pts = [], dd = [];
+    for (var d = 0; d < cut; d += step) { pts.push(at(d)); dd.push(d); }
+    pts.push(at(cut)); dd.push(cut);
+    if (pts.length < 2) { pts = [P[0], at(cut)]; dd = [0, cut]; }
+    function dirAt(k) { var a = pts[Math.max(0, k - 2)], b = pts[Math.min(pts.length - 1, k + 2)], dx = b[0] - a[0], dy = b[1] - a[1], n = Math.hypot(dx, dy) || 1; return [dx / n, dy / n]; }
+    var left = [], right = [];
     for (i = 0; i < pts.length; i++) {
-      var n1 = i > 0 ? nrm(pts[i - 1], pts[i]) : null, n2 = i < pts.length - 1 ? nrm(pts[i], pts[i + 1]) : null, n, sc = 1;
-      if (n1 && n2) { n = [n1[0] + n2[0], n1[1] + n2[1]]; var d = Math.hypot(n[0], n[1]) || 1; n = [n[0] / d, n[1] / d]; sc = Math.min(2.5, 1 / Math.max(0.3, n[0] * n1[0] + n[1] * n1[1])); }
-      else n = n1 || n2;
-      var hw = (w / 2) * (tailF + (1 - tailF) * (dist2[i] / L)) * sc;
-      left.push([pts[i][0] + n[0] * hw, pts[i][1] + n[1] * hw]); right.push([pts[i][0] - n[0] * hw, pts[i][1] - n[1] * hw]);
+      var tg = dirAt(i), nx = -tg[1], ny = tg[0], hw = (w / 2) * (tailF + (1 - tailF) * Math.pow(dd[i] / cut, 0.8));
+      left.push([pts[i][0] + nx * hw, pts[i][1] + ny * hw]); right.push([pts[i][0] - nx * hw, pts[i][1] - ny * hw]);
     }
-    var tip = P[P.length - 1], dir = nrm(cutPt, tip);
-    var ring = left.concat([[cutPt[0] + dir[0] * headW / 2, cutPt[1] + dir[1] * headW / 2], tip, [cutPt[0] - dir[0] * headW / 2, cutPt[1] - dir[1] * headW / 2]]).concat(right.reverse());
+    var cutPt = pts[pts.length - 1], tip = P[P.length - 1], hd = [tip[0] - cutPt[0], tip[1] - cutPt[1]], hn = Math.hypot(hd[0], hd[1]) || 1; hd = [hd[0] / hn, hd[1] / hn];
+    var nn = [-hd[1], hd[0]], back = headL * 0.16;
+    var barbL = [cutPt[0] + nn[0] * headW / 2 - hd[0] * back, cutPt[1] + nn[1] * headW / 2 - hd[1] * back], barbR = [cutPt[0] - nn[0] * headW / 2 - hd[0] * back, cutPt[1] - nn[1] * headW / 2 - hd[1] * back];
+    var ring = left.concat([barbL, tip, barbR]).concat(right.reverse());
     ring.push(ring[0]);
     return ring.map(unmerc);
   }
+  // Shortens a line by some metres at its end (and start), so an arrowhead's tip lands on the last point.
+  function trimLine(cs, endM, startM) {
+    function cut(list, m) {
+      if (!(m > 0) || list.length < 2) return list;
+      var out = list.slice(), left = m;
+      while (out.length > 1) {
+        var a = out[out.length - 1], b = out[out.length - 2], d = dist(a, b) * 1000;
+        if (d > left) { var t = left / d; out[out.length - 1] = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; return out; }
+        left -= d; out.pop();
+      }
+      return list;
+    }
+    var r = cut(cs, endM);
+    if (startM > 0) r = cut(r.slice().reverse(), startM).reverse();
+    return r;
+  }
+  // Mixes a color toward black (t < 0) or white (t > 0).
+  function shade(hex, t) { var c = parseColor(hex) || [128, 128, 128, 1], g = t < 0 ? 0 : 255, k = Math.abs(t); return hexOf('rgb(' + c.slice(0, 3).map(function (v) { return Math.round(v + (g - v) * k); }).join(',') + ')'); }
   function bbox(rings) {
     var b = [Infinity, Infinity, -Infinity, -Infinity];
     rings.forEach(function (r) { r.forEach(function (c) { if (c[0] < b[0]) b[0] = c[0]; if (c[1] < b[1]) b[1] = c[1]; if (c[0] > b[2]) b[2] = c[0]; if (c[1] > b[3]) b[3] = c[1]; }); });
@@ -5017,8 +5033,8 @@ var MAPC = (function () {
         color: st.color ? hexOf(st.color) : '', marker: pick(st.marker, MARKERS, 'circle'), size: numOr(st.size, 1, 0.3, 4),
         width: numOr(st.width, kind === 'arrow' ? 12 : 3, 0.2, kind === 'arrow' ? 2000 : 40), dash: pick(st.dash, DASHES, 'solid'),
         heads: pick(st.heads, [['none'], ['end'], ['both']], 'none'), fill: numOr(st.fill, kind === 'area' ? 0.25 : kind === 'ring' ? 0.08 : 0.85, 0, 1), hatch: !!st.hatch,
-        outline: st.outline === false ? false : true, smooth: !!st.smooth, labelPos: pick(st.labelPos, [['auto'], ['right'], ['left'], ['top'], ['bottom'], ['center'], ['none']], 'auto'), edge: pick(st.edge, EDGES, 'line'),
-        opacity: numOr(st.opacity, 0.85, 0, 1), locked: !!st.locked, marks: st.marks !== false, aspect: numOr(st.aspect, 0, 0, 100),
+        outline: st.outline === false ? false : true, smooth: !!st.smooth, labelPos: pick(st.labelPos, [['auto'], ['right'], ['left'], ['top'], ['bottom'], ['tr'], ['br'], ['tl'], ['bl'], ['center'], ['none']], 'auto'), edge: pick(st.edge, EDGES, 'line'),
+        opacity: numOr(st.opacity, 0.85, 0, 1), locked: !!st.locked, shadow: st.shadow !== false, marks: st.marks !== false, aspect: numOr(st.aspect, 0, 0, 100),
         labelStyle: pick(st.labelStyle, [['halo'], ['box'], ['plain'], ['region']], 'halo'), labelSize: numOr(st.labelSize, 1, 0.5, 4), dx: numOr(st.dx, 0, -500, 500), dy: numOr(st.dy, 0, -500, 500)
       },
       sym: kind === 'symbol' ? {
@@ -5110,13 +5126,63 @@ var MAPC = (function () {
     return out.join(',');
   }
 
+  // ---------- label positions ----------
+  var SPOTS = ['right', 'left', 'top', 'bottom', 'tr', 'br', 'tl', 'bl'];
+  // Where a label sits for a position name, as an icon anchor and an offset in label-image units. ext: the symbol's extent from its point.
+  function labelSpot(pos, ext, ss, tsc) {
+    var r = (ext.r * ss + 4) / tsc, l = (ext.l * ss + 4) / tsc, t = (ext.t * ss + 3) / tsc, b = (ext.b * ss + 3) / tsc, k = 0.78;
+    switch (pos) {
+      case 'right': return { an: 'left', off: [r, 0] };
+      case 'left': return { an: 'right', off: [-l, 0] };
+      case 'top': return { an: 'bottom', off: [0, -t] };
+      case 'bottom': return { an: 'top', off: [0, b] };
+      case 'tr': return { an: 'bottom-left', off: [r * k, -t * k] };
+      case 'br': return { an: 'top-left', off: [r * k, b * k] };
+      case 'tl': return { an: 'bottom-right', off: [-l * k, -t * k] };
+      case 'bl': return { an: 'top-right', off: [-l * k, b * k] };
+      default: return { an: 'center', off: [0, 0] };
+    }
+  }
+  // The box a label image covers on screen. pt: its feature's point in pixels; s: pixels per label-image unit.
+  function labelBox(pt, an, off, w, h, s) {
+    var x = pt[0] + off[0] * s, y = pt[1] + off[1] * s, W = w * s, H = h * s;
+    var x0 = /left/.test(an) ? x : /right/.test(an) ? x - W : x - W / 2, y0 = /^top/.test(an) ? y : /^bottom/.test(an) ? y - H : y - H / 2;
+    return [x0, y0, x0 + W, y0 + H];
+  }
+  function overlap(a, b) { var w = Math.min(a[2], b[2]) - Math.max(a[0], b[0]), h = Math.min(a[3], b[3]) - Math.max(a[1], b[1]); return w > 0 && h > 0 ? w * h : 0; }
+  // Chooses a position for each movable label: the first that overlaps least with symbols, panels, other labels and the frame's edge.
+  // items: [{ id, pt, cands: [{ pos, box }] }] in priority order; blockers: boxes to avoid; bounds: [0, 0, w, h];
+  // points: [{ id, pt }] of every symbol, so a label is never left nearer someone else's symbol than its own.
+  function boxDist(b, p) { var dx = Math.max(b[0] - p[0], 0, p[0] - b[2]), dy = Math.max(b[1] - p[1], 0, p[1] - b[3]); return Math.hypot(dx, dy); }
+  // soft: boxes along lines and arrows; covering part of a line is better than covering a symbol, so their overlap counts once and lightly.
+  function placeLabels(items, blockers, bounds, points, soft) {
+    var placed = blockers.slice(), labs = [], out = {};
+    items.forEach(function (it) {
+      var best = null, bestCost = Infinity;
+      it.cands.forEach(function (c, k) {
+        var b = c.box, area = Math.max(1, (b[2] - b[0]) * (b[3] - b[1])), cost = k * 0.02 * area;
+        placed.forEach(function (q) { cost += overlap(b, q); });
+        // two labels run together read as one, so their (padded) overlap counts extra
+        labs.forEach(function (q) { cost += overlap(b, q) * 2; });
+        if (soft) { var so = 0; soft.forEach(function (q) { so += overlap(b, q); }); cost += Math.min(area, so) * 0.5; }
+        // a label clearly nearer another symbol than its own would be read as that symbol's
+        if (it.pt && points) { var own = boxDist(b, it.pt); points.forEach(function (q) { if (q.id !== it.id && boxDist(b, q.pt) < own * 0.6) cost += area * 1.2; }); }
+        if (bounds) { var inside = overlap(b, bounds); cost += (area - inside) * 3; }
+        c.cost = Math.round(cost);
+        if (cost < bestCost - 1e-6) { bestCost = cost; best = c; }
+      });
+      if (best) { var bb = best.box; out[it.id] = best.pos; placed.push(bb); labs.push([bb[0] - 9, bb[1] - 4, bb[2] + 9, bb[3] + 4]); }
+    });
+    return out;
+  }
+
   // ---------- render geometry for the map ----------
   function hashKey(o) { var s = JSON.stringify(o), h = 5381; for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36) + s.length.toString(36); }
   function img(specs, spec) { var k = spec.t + '-' + hashKey(spec); if (!specs[k]) specs[k] = spec; return k; }
   function colorOf(p, f) { if (f.style.color) return f.style.color; for (var i = 0; i < p.layers.length; i++) if (p.layers[i].id === f.layer) return p.layers[i].color; return '#2F6FDE'; }
   // Builds the GeoJSON the map draws, plus the images it needs. measure(key) returns { w, h } of a drawn image in map pixels, or null.
   function render(p, o) {
-    o = o || {}; var out = [], specs = {}, images = [], nums = o.markers ? numbering(p).num : {}, theme = o.theme || 'dark', sel = o.selected || '';
+    o = o || {}; var out = [], specs = {}, images = [], labels = [], icons = [], paths = [], nums = o.markers ? numbering(p).num : {}, theme = o.theme || 'dark', sel = o.selected || '';
     var measure = o.measure || function () { return null; };
     var li = {}; p.layers.forEach(function (l, i) { li[l.id] = i; });
     atTime(p, o.at).map(function (f, i) { return [f, i]; }).sort(function (a, b) { return (li[b[0].layer] - li[a[0].layer]) || (a[1] - b[1]); }).map(function (x) { return x[0]; }).forEach(function (f) {
@@ -5129,27 +5195,32 @@ var MAPC = (function () {
         feat('fill', geom, { c: col, o: s.fill });
         if (s.hatch) feat('hatch', geom, { pat: img(specs, { t: 'hatch', color: col }) });
         var edge = f.kind === 'arrow' ? 'line' : s.edge, line = { type: 'LineString', coordinates: ring };
+        if (f.kind === 'arrow' && s.shadow !== false) feat('shadow', geom, {});
+        if (f.kind === 'arrow') paths.push({ cs: smoothLL(f.coords, s.smooth), km: s.width });
         if (edge === 'band') { var bw = Math.max(3, s.width * 3); feat('band', line, { c: col, w: bw, off: (ringArea(ring) > 0 ? -1 : 1) * bw / 2 }); }
         if (edge === 'soft') feat('soft', line, { c: col, w: Math.max(2, s.width * 2.2) });
-        else if (s.outline || f.kind !== 'arrow') feat('outline', line, { c: f.kind === 'arrow' ? (theme === 'light' ? '#FFFFFF' : '#0B1218') : col, w: f.kind === 'arrow' ? 1.4 : edge === 'band' ? Math.min(1.2, s.width) : Math.min(s.width, 12), d: f.kind === 'arrow' ? 'solid' : s.dash });
+        else if (s.outline || f.kind !== 'arrow') feat('outline', line, { c: f.kind === 'arrow' ? shade(col, -0.38) : col, w: f.kind === 'arrow' ? 1.3 : edge === 'band' ? Math.min(1.2, s.width) : Math.min(s.width, 12), d: f.kind === 'arrow' ? 'solid' : s.dash });
         lp = f.kind === 'area' ? centroid(ring) : f.kind === 'ring' ? f.coords[0] : midpoint(smoothLL(f.coords, s.smooth));
         if (f.kind === 'ring') lp = destination(f.coords[0], 0, f.radius);
         anchorDefault = f.kind === 'ring' ? 'bottom' : 'center';
       } else if (f.kind === 'line') {
-        var cs = smoothLL(f.coords, s.smooth);
-        feat('line', { type: 'LineString', coordinates: cs }, { c: col, w: s.width, d: s.dash, cas: theme === 'light' ? '#FFFFFF' : '#0B1218' });
+        var cs = smoothLL(f.coords, s.smooth), drawn = cs;
         if (s.heads !== 'none' && cs.length > 1) {
-          var hk = img(specs, { t: 'head', color: col });
-          var hs = 0.55 + s.width * 0.2;
-          feat('head', { type: 'Point', coordinates: cs[cs.length - 1] }, { img: hk, rot: screenBearing(cs[cs.length - 2], cs[cs.length - 1]), sz: hs });
-          if (s.heads === 'both') feat('head', { type: 'Point', coordinates: cs[0] }, { img: hk, rot: screenBearing(cs[1], cs[0]), sz: hs });
+          // The head is a separate image whose tip sits on the last point; the line stops inside it, so its end never shows past the tip.
+          var hw = Math.max(1, s.width), HL = 4.5 + hw * 2.6, hk = img(specs, { t: 'head', color: col, w: hw, theme: theme }), trim = o.mpp && o.u ? HL * 0.7 * o.u * o.mpp : 0;
+          drawn = trimLine(cs, trim, s.heads === 'both' ? trim : 0);
+          feat('head', { type: 'Point', coordinates: cs[cs.length - 1] }, { img: hk, rot: screenBearing(cs[cs.length - 2], cs[cs.length - 1]), sz: 1 });
+          if (s.heads === 'both') feat('head', { type: 'Point', coordinates: cs[0] }, { img: hk, rot: screenBearing(cs[1], cs[0]), sz: 1 });
         }
+        feat('line', { type: 'LineString', coordinates: drawn }, { c: col, w: s.width, d: s.dash, cas: theme === 'light' ? '#FFFFFF' : '#0B1218' });
+        paths.push({ cs: drawn, px: s.width });
         lp = midpoint(cs);
       } else if (f.kind === 'point' || f.kind === 'symbol') {
         var key = f.kind === 'point' ? img(specs, { t: 'marker', shape: s.marker, color: col, size: s.size }) : img(specs, { t: 'mil', sidc: sidcOf(f.sym), sym: f.sym, size: s.size });
         var mz = measure(key), ax = mz && mz.ax != null ? mz.ax : mz ? mz.w / 2 : 10 * s.size, ay = mz && mz.ay != null ? mz.ay : mz ? mz.h / 2 : 10 * s.size, mw = mz ? mz.w : 20 * s.size, mh = mz ? mz.h : 20 * s.size;
         feat('point', { type: 'Point', coordinates: f.coords[0] }, { img: key, po: [mw / 2 - ax, mh / 2 - ay] });
         ext = mz && mz.fx != null ? { l: mz.fx, r: mz.fr, t: mz.ft, b: mz.fb } : { l: ax, r: mw - ax, t: ay, b: mh - ay };
+        icons.push({ fid: f.id, lp: f.coords[0], ext: ext });
         lp = f.coords[0]; anchorDefault = 'right';
       } else if (f.kind === 'label') { lp = f.coords[0]; }
       else if (f.kind === 'image') {
@@ -5159,17 +5230,18 @@ var MAPC = (function () {
       }
       var text = f.label || '', sup = o.markers && s.marks ? supText(featureNums(f, nums)) : '';
       if ((text || (sup && f.kind !== 'label')) && lp && s.labelPos !== 'none') {
-        var pos = s.labelPos === 'auto' ? anchorDefault : s.labelPos;
+        var movable = s.labelPos === 'auto' && (f.kind === 'point' || f.kind === 'symbol');
+        var pos = s.labelPos === 'auto' ? (movable && o.place && o.place[f.id]) || anchorDefault : s.labelPos;
         var lk = img(specs, { t: 'label', text: text, sup: sup, style: s.labelStyle, size: s.labelSize, theme: theme, color: f.kind === 'label' || s.labelStyle === 'region' ? col : '', bold: f.kind === 'label' });
-        var ss = o.symScale || 1, tsc = o.txtScale || 1;
-        var off = { center: [0, 0], right: [(ext.r * ss + 4) / tsc, 0], left: [-(ext.l * ss + 4) / tsc, 0], top: [0, -(ext.t * ss + 3) / tsc], bottom: [0, (ext.b * ss + 3) / tsc] }[pos];
-        var anchor = { center: 'center', right: 'left', left: 'right', top: 'bottom', bottom: 'top' }[pos];
+        var ss = o.symScale || 1, tsc = o.txtScale || 1, spot = labelSpot(pos, ext, ss, tsc), anchor = spot.an, off = spot.off;
         if (f.kind === 'ring' && s.labelPos === 'auto') { anchor = 'bottom'; off = [0, -4 / tsc]; }
-        feat('label', { type: 'Point', coordinates: lp }, { img: lk, an: anchor, off: [off[0] + s.dx / tsc, off[1] + s.dy / tsc] });
+        var total = [off[0] + s.dx / tsc, off[1] + s.dy / tsc];
+        feat('label', { type: 'Point', coordinates: lp }, { img: lk, an: anchor, off: total, lpos: pos });
+        labels.push({ fid: f.id, lp: lp, key: lk, pos: pos, an: anchor, off: total, dx: s.dx, dy: s.dy, ext: f.kind === 'point' || f.kind === 'symbol' ? ext : null, movable: movable && !s.dx && !s.dy });
       }
     });
     images.reverse(); // lower layers first, so they draw underneath
-    return { fc: { type: 'FeatureCollection', features: out }, specs: specs, images: images };
+    return { fc: { type: 'FeatureCollection', features: out }, specs: specs, images: images, labels: labels, icons: icons, paths: paths };
   }
   // Items for the legend: one per shown layer, then each distinct military symbol.
   function legendItems(p, catalogName) {
@@ -5189,7 +5261,9 @@ var MAPC = (function () {
       if (f.kind !== 'symbol') return; var sidc = sidcOf(f.sym), k = sidc.slice(0, 12) + (f.sym.mono ? 'm' : '') + '|' + clean(f.sym.key);
       if (seenSym[k]) return; seenSym[k] = 1;
       var nm = (catalogName && catalogName(sidc)) || 'symbol ' + sidc, adj = AFFIL_ADJ[f.sym.affil] || '';
-      items.push({ kind: 'symbol', label: clean(f.sym.key) || (adj ? adj + ' ' : '') + nm.replace(/\b([A-Z])([a-z][a-z'\-]*)/g, function (m0, a, b) { return a.toLowerCase() + b; }), sidc: sidc, sym: f.sym });
+      var ech = (ECHELON.filter(function (e) { return e[0] === f.sym.ech && e[0] !== '-'; })[0] || [])[1];
+      var bare = Object.assign({}, f.sym, { ech: '-', hq: '-' }), keySidc = f.sym.custom ? sidc : sidcOf(bare);
+      items.push({ kind: 'symbol', label: clean(f.sym.key) || (adj ? adj + ' ' : '') + nm.replace(/\b([A-Z])([a-z][a-z'\-]*)/g, function (m0, a, b) { return a.toLowerCase() + b; }) + (ech ? ', ' + ech.split(' /')[0].toLowerCase() : ''), sidc: keySidc, sym: f.sym });
     });
     return items;
   }
@@ -5416,7 +5490,7 @@ var MAPC = (function () {
   return {
     FORMAT: FORMAT, REF_W: REF_W, AFFIL_ADJ: AFFIL_ADJ, KINDS: KINDS, KIND_NAMES: KIND_NAMES, MARKERS: MARKERS, COLORS: COLORS, AFFIL: AFFIL, STATUS: STATUS, ECHELON: ECHELON, HQTF: HQTF, DASHES: DASHES, EDGES: EDGES, MODERN: MODERN, PRESETS: PRESETS, CORNERS: CORNERS, TONES: TONES, CSV_FIELDS: CSV_FIELDS,
     clean: clean, str: str, nextId: nextId, parseCoord: parseCoord, fmtCoord: fmtCoord, dist: dist, lengthKm: lengthKm, destination: destination, circle: circle, merc: merc, unmerc: unmerc, screenBearing: screenBearing,
-    ringArea: ringArea, closeRing: closeRing, smoothLL: smoothLL, midpoint: midpoint, centroid: centroid, boldArrow: boldArrow, bbox: bbox, extent: extent, isUnitTpl: isUnitTpl, isInstallTpl: isInstallTpl, sidcOf: sidcOf, catalogKey: catalogKey,
+    ringArea: ringArea, closeRing: closeRing, smoothLL: smoothLL, trimLine: trimLine, shade: shade, SPOTS: SPOTS, labelSpot: labelSpot, labelBox: labelBox, placeLabels: placeLabels, midpoint: midpoint, centroid: centroid, boldArrow: boldArrow, bbox: bbox, extent: extent, isUnitTpl: isUnitTpl, isInstallTpl: isInstallTpl, sidcOf: sidcOf, catalogKey: catalogKey,
     parseWhen: parseWhen, fmtWhen: fmtWhen, yearText: yearText, barPrec: barPrec, snapTime: snapTime, unitStart: unitStart, spanOf: spanOf, onAt: onAt, timeRange: timeRange, atTime: atTime, flyPath: flyPath, videoPlan: videoPlan, ease: ease,
     parseColor: parseColor, hexOf: hexOf, lum: lum, toneColor: toneColor, restyle: restyle, scaleWidth: scaleWidth, blank: blank, normalize: normalize, normFeature: normFeature, sourceState: sourceState,
     shown: shown, numbering: numbering, featureNums: featureNums, supText: supText, render: render, legendItems: legendItems, colorOf: colorOf, parseCSV: parseCSV, csvCell: csvCell, guessMapping: guessMapping, parseWKT: parseWKT,
@@ -5425,7 +5499,401 @@ var MAPC = (function () {
   };
 })();
 </script>
-<script type="application/json" id="example-data">{"app":"OSINT Map Builder","format":2,"meta":{"title":"D-Day: The Normandy Landings","dek":"Assault divisions on 6 June 1944 and the German divisions facing them","byline":"Example map built with the OSINT Map Builder","credit":"","date":"Positions are approximate"},"view":{"center":[-0.79,49.385],"zoom":8.5,"bearing":0,"pitch":0},"base":{"style":"liberty","tone":"muted","labels":"places","borders":false,"relief":false,"imagery":"","hillshade":false,"coords":"dd"},"layout":{"preset":"substack-wide","theme":"dark","title":true,"titlePos":"tl","legend":true,"legendPos":"tr","legendTitle":"Key","symbolKey":true,"sources":"short","markers":true,"scale":true,"north":true,"credit":true,"textScale":1,"symbolScale":1},"layers":[{"id":"l1","name":"Allied assault divisions","color":"#2F6FDE"},{"id":"l2","name":"Allied airborne divisions","color":"#2F6FDE"},{"id":"l3","name":"German divisions","color":"#D7263D"},{"id":"l4","name":"Seaborne landings","color":"#2F6FDE"}],"features":[{"id":"f1","kind":"arrow","layer":"l4","coords":[[-1.03,49.6],[-1.12,49.5],[-1.175,49.425]],"label":"UTAH","note":"Arrow drawn by the map maker toward the beach the source names.","style":{"width":2.6,"smooth":true,"fill":0.88,"outline":true,"labelStyle":"box","labelPos":"center"},"cites":[{"src":"s1","loc":"","quote":"","note":""}]},{"id":"f2","kind":"arrow","layer":"l4","coords":[[-0.84,49.56],[-0.855,49.46],[-0.87,49.38]],"label":"OMAHA","note":"Arrow drawn by the map maker toward the beach the source names.","style":{"width":2.6,"smooth":true,"fill":0.88,"outline":true,"labelStyle":"box","labelPos":"center"},"cites":[{"src":"s1","loc":"","quote":"","note":""}]},{"id":"f3","kind":"arrow","layer":"l4","coords":[[-0.53,49.53],[-0.55,49.43],[-0.565,49.355]],"label":"GOLD","note":"Arrow drawn by the map maker toward the beach the source names.","style":{"width":2.6,"smooth":true,"fill":0.88,"outline":true,"labelStyle":"box","labelPos":"center"},"cites":[{"src":"s1","loc":"","quote":"","note":""}]},{"id":"f4","kind":"arrow","layer":"l4","coords":[[-0.39,49.53],[-0.41,49.43],[-0.43,49.345]],"label":"JUNO","note":"Arrow drawn by the map maker toward the beach the source names.","style":{"width":2.6,"smooth":true,"fill":0.88,"outline":true,"labelStyle":"box","labelPos":"center"},"cites":[{"src":"s1","loc":"","quote":"","note":""},{"src":"s3","loc":"p. 72","quote":"","note":""}]},{"id":"f5","kind":"arrow","layer":"l4","coords":[[-0.23,49.5],[-0.26,49.39],[-0.29,49.3]],"label":"SWORD","note":"Arrow drawn by the map maker toward the beach the source names.","style":{"width":2.6,"smooth":true,"fill":0.88,"outline":true,"labelStyle":"box","labelPos":"center"},"cites":[{"src":"s1","loc":"","quote":"","note":""}]},{"id":"f6","kind":"symbol","layer":"l1","coords":[[-1.26,49.44]],"label":"US 4th","note":"Placed by the map maker at the general position the source describes; the source gives no coordinates.","style":{"size":1,"labelPos":"bottom"},"sym":{"tpl":"S*G*UCI--------","affil":"F","status":"P","ech":"I","hq":"-","unique":"4","key":"Allied infantry division"},"cites":[{"src":"s1","loc":"","quote":"","note":""},{"src":"s2","loc":"p. 10","quote":"The 4th Division was to assault UTAH Beach at H Hour","note":""}]},{"id":"f7","kind":"symbol","layer":"l1","coords":[[-0.975,49.335]],"label":"US 29th","note":"Placed by the map maker at the general position the source describes; the source gives no coordinates.","style":{"size":1,"labelPos":"bottom"},"sym":{"tpl":"S*G*UCI--------","affil":"F","status":"P","ech":"I","hq":"-","unique":"29","key":"Allied infantry division"},"cites":[{"src":"s1","loc":"","quote":"","note":""}]},{"id":"f8","kind":"symbol","layer":"l1","coords":[[-0.8,49.33]],"label":"US 1st","note":"Placed by the map maker at the general position the source describes; the source gives no coordinates.","style":{"size":1,"labelPos":"bottom"},"sym":{"tpl":"S*G*UCI--------","affil":"F","status":"P","ech":"I","hq":"-","unique":"1","key":"Allied infantry division"},"cites":[{"src":"s1","loc":"","quote":"","note":""}]},{"id":"f9","kind":"symbol","layer":"l1","coords":[[-0.6,49.3]],"label":"British 50th","note":"Placed by the map maker at the general position the source describes; the source gives no coordinates.","style":{"size":1,"labelPos":"bottom"},"sym":{"tpl":"S*G*UCI--------","affil":"F","status":"P","ech":"I","hq":"-","unique":"50","key":"Allied infantry division"},"cites":[{"src":"s1","loc":"","quote":"","note":""}]},{"id":"f10","kind":"symbol","layer":"l1","coords":[[-0.445,49.29]],"label":"3rd Canadian","note":"Placed by the map maker at the general position the source describes; the source gives no coordinates.","style":{"size":1,"labelPos":"bottom"},"sym":{"tpl":"S*G*UCI--------","affil":"F","status":"P","ech":"I","hq":"-","unique":"3","key":"Allied infantry division"},"cites":[{"src":"s1","loc":"","quote":"","note":""},{"src":"s3","loc":"p. 72","quote":"","note":""}]},{"id":"f11","kind":"symbol","layer":"l1","coords":[[-0.295,49.25]],"label":"British 3rd","note":"Placed by the map maker at the general position the source describes; the source gives no coordinates.","style":{"size":1,"labelPos":"bottom"},"sym":{"tpl":"S*G*UCI--------","affil":"F","status":"P","ech":"I","hq":"-","unique":"3","key":"Allied infantry division"},"cites":[{"src":"s1","loc":"","quote":"","note":""}]},{"id":"f12","kind":"symbol","layer":"l2","coords":[[-1.25,49.345]],"label":"US 101st","note":"Placed by the map maker at the general position the source describes; the source gives no coordinates.","style":{"size":1,"labelPos":"bottom"},"sym":{"tpl":"S*G*UCIA-------","affil":"F","status":"P","ech":"I","hq":"-","unique":"101","key":"Allied airborne division"},"cites":[{"src":"s2","loc":"p. 7","quote":"the 101st Airborne Division would land southeast of Ste. Mère-Eglise","note":""}]},{"id":"f13","kind":"symbol","layer":"l2","coords":[[-1.41,49.405]],"label":"US 82nd","note":"Placed by the map maker at the general position the source describes; the source gives no coordinates.","style":{"size":1,"labelPos":"bottom"},"sym":{"tpl":"S*G*UCIA-------","affil":"F","status":"P","ech":"I","hq":"-","unique":"82","key":"Allied airborne division"},"cites":[{"src":"s2","loc":"p. 10","quote":"establishing deep bridgeheads over the Merderet River","note":""}]},{"id":"f14","kind":"symbol","layer":"l2","coords":[[-0.15,49.2]],"label":"British 6th","note":"Placed by the map maker at the general position the source describes; the source gives no coordinates.","style":{"size":1,"labelPos":"bottom"},"sym":{"tpl":"S*G*UCIA-------","affil":"F","status":"P","ech":"I","hq":"-","unique":"6","key":"Allied airborne division"},"cites":[{"src":"s3","loc":"p. 72","quote":"dropping east of the Orne to seize crossings over the Caen Canal","note":""}]},{"id":"f15","kind":"symbol","layer":"l3","coords":[[-1.4,49.53]],"label":"709th","note":"Placed by the map maker at the general position the source describes; the source gives no coordinates.","style":{"size":1,"labelPos":"bottom"},"sym":{"tpl":"S*G*UCI--------","affil":"H","status":"P","ech":"I","hq":"-","unique":"709","key":"German infantry division"},"cites":[{"src":"s2","loc":"p. 6","quote":"","note":""}]},{"id":"f16","kind":"symbol","layer":"l3","coords":[[-0.84,49.245]],"label":"352nd","note":"Placed by the map maker at the general position the source describes; the source gives no coordinates.","style":{"size":1,"labelPos":"bottom"},"sym":{"tpl":"S*G*UCI--------","affil":"H","status":"P","ech":"I","hq":"-","unique":"352","key":"German infantry division"},"cites":[{"src":"s1","loc":"","quote":"","note":""},{"src":"s2","loc":"p. 6","quote":"","note":""}]},{"id":"f17","kind":"symbol","layer":"l3","coords":[[-0.47,49.215]],"label":"716th","note":"Placed by the map maker at the general position the source describes; the source gives no coordinates.","style":{"size":1,"labelPos":"bottom"},"sym":{"tpl":"S*G*UCI--------","affil":"H","status":"P","ech":"I","hq":"-","unique":"716","key":"German infantry division"},"cites":[{"src":"s2","loc":"p. 6","quote":"The 716th and 352d Divisions, disposed east and south of the Cotentin","note":""}]}],"sources":[{"id":"s1","fields":{"type":"web","titleStyle":"quotes","authors":"Imperial War Museums","shortName":"Imperial War Museums","shortTitle":"D-Day Beaches","title":"What you Need to Know about the D-Day Beaches","location":"Imperial War Museums Website","descType":"Web Page","accessed":"23 October 2026","url":"https://www.iwm.org.uk/history/what-you-need-to-know-about-the-d-day-beaches","access":[],"quals":[]}},{"id":"s2","fields":{"type":"report","titleStyle":"italics","authors":"Historical Division, War Department","shortName":"Historical Division","shortTitle":"Utah Beach to Cherbourg","title":"Utah Beach to Cherbourg (6 June–27 June 1944)","location":"American Forces in Action Series","descType":"Official History","descDetails":"HyperWar online edition","date":"1947","url":"https://www.ibiblio.org/hyperwar/USA/USA-A-Utah/index.html","access":[],"quals":[]}},{"id":"s3","fields":{"type":"book","titleStyle":"italics","authors":"C.P. Stacey","shortTitle":"Victory Campaign","title":"The Victory Campaign: The Operations in North-West Europe, 1944–1945","descType":"Official History","descDetails":"Official History of the Canadian Army in the Second World War, Vol. III; HyperWar online edition","publisher":"Queen's Printer","date":"1966","url":"https://ibiblio.org/hyperwar/UN/Canada/CA/Victory/Victory-4.html","access":[],"quals":[]}}],"views":[{"id":"v1","name":"The whole assault","center":[-0.79,49.385],"zoom":8.5,"bearing":0,"pitch":0,"hold":2.5,"fly":4},{"id":"v2","name":"Utah and the American airborne drops","center":[-1.27,49.41],"zoom":9.3,"bearing":0,"pitch":30,"hold":3,"fly":4},{"id":"v3","name":"Omaha","center":[-0.88,49.34],"zoom":9.9,"bearing":0,"pitch":30,"hold":3,"fly":3.5},{"id":"v4","name":"The British and Canadian beaches","center":[-0.4,49.3],"zoom":9.5,"bearing":-10,"pitch":20,"hold":3,"fly":4},{"id":"v5","name":"Back to the whole assault","center":[-0.79,49.385],"zoom":8.5,"bearing":0,"pitch":0,"hold":2,"fly":4}],"gaps":["Positions are the map maker's placement from the sources' descriptions, not plotted coordinates."]}</script>
+<script id="map-render">// OSINT Map Builder: the map engine. Basemaps, the images the map draws (markers, military symbols, labels, arrowheads, hatching),
+// the data layers, and keeping a MapLibre map in step with a project. Shared by the Map Builder and the Dashboard Builder.
+// Needs maplibregl, ms (milsymbol), MAPC and WORLD_GEO. (c) 2026 G. Michael Rapp. MIT License.
+var OMR = (function () {
+  'use strict';
+  var M = MAPC;
+  var FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+  var SERIF = '"Iowan Old Style", Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif';
+  // ---------- images the map draws (markers, symbols, labels, arrowheads, hatching) ----------
+  var SPECS = {}, IMG = {}, SYM_SVG = {};
+  function canvas(w, h) { var c = document.createElement('canvas'); c.width = Math.max(1, Math.ceil(w)); c.height = Math.max(1, Math.ceil(h)); c.getContext('2d', { willReadFrequently: true }); return c; }
+  function markerPath(ctx, shape, cx, cy, r) {
+    ctx.beginPath();
+    var i, a;
+    if (shape === 'square') { ctx.rect(cx - r * 0.86, cy - r * 0.86, r * 1.72, r * 1.72); }
+    else if (shape === 'triangle') { ctx.moveTo(cx, cy - r * 1.08); ctx.lineTo(cx + r * 1.02, cy + r * 0.72); ctx.lineTo(cx - r * 1.02, cy + r * 0.72); ctx.closePath(); }
+    else if (shape === 'diamond') { ctx.moveTo(cx, cy - r * 1.12); ctx.lineTo(cx + r * 1.0, cy); ctx.lineTo(cx, cy + r * 1.12); ctx.lineTo(cx - r * 1.0, cy); ctx.closePath(); }
+    else if (shape === 'star') { for (i = 0; i < 10; i++) { a = -Math.PI / 2 + (i * Math.PI) / 5; var rr = i % 2 ? r * 0.48 : r * 1.12; ctx[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } ctx.closePath(); }
+    else if (shape === 'burst') { var n = 12; for (i = 0; i < n * 2; i++) { a = -Math.PI / 2 + (i * Math.PI) / n; var q = i % 2 ? r * 0.58 : r * (i % 4 ? 1.05 : 1.25); ctx[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * q, cy + Math.sin(a) * q); } ctx.closePath(); }
+    else if (shape === 'cross') { var t = r * 0.36; ctx.moveTo(cx - r, cy - r + t); ctx.lineTo(cx - r + t, cy - r); ctx.lineTo(cx, cy - t); ctx.lineTo(cx + r - t, cy - r); ctx.lineTo(cx + r, cy - r + t); ctx.lineTo(cx + t, cy); ctx.lineTo(cx + r, cy + r - t); ctx.lineTo(cx + r - t, cy + r); ctx.lineTo(cx, cy + t); ctx.lineTo(cx - r + t, cy + r); ctx.lineTo(cx - r, cy + r - t); ctx.lineTo(cx - t, cy); ctx.closePath(); }
+    else if (shape === 'pin') { ctx.moveTo(cx, cy); ctx.bezierCurveTo(cx - r * 0.35, cy - r * 0.9, cx - r * 1.05, cy - r * 1.35, cx - r * 1.05, cy - r * 2.05); ctx.arc(cx, cy - r * 2.05, r * 1.05, Math.PI, 0); ctx.bezierCurveTo(cx + r * 1.05, cy - r * 1.35, cx + r * 0.35, cy - r * 0.9, cx, cy); ctx.closePath(); }
+    else { ctx.arc(cx, cy, shape === 'dot' ? r * 0.55 : r, 0, Math.PI * 2); }
+  }
+  function strokeFor(hex) { var c = M.parseColor(hex) || [0, 0, 0, 1]; return M.lum(c) > 0.82 ? '#1B1F24' : '#FFFFFF'; }
+  function drawMarker(ctx, shape, color, cx, cy, r, lw) {
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = r * 0.35; ctx.shadowOffsetY = r * 0.08;
+    markerPath(ctx, shape, cx, cy, r); ctx.fillStyle = color; ctx.fill(); ctx.restore();
+    ctx.save(); markerPath(ctx, shape, cx, cy, r); ctx.lineJoin = 'round'; ctx.lineWidth = lw; ctx.strokeStyle = strokeFor(color); ctx.stroke();
+    if (shape === 'pin') { ctx.beginPath(); ctx.arc(cx, cy - r * 2.05, r * 0.42, 0, Math.PI * 2); ctx.fillStyle = strokeFor(color); ctx.fill(); }
+    ctx.restore();
+  }
+  function milSymbol(spec, dark) {
+    var y = spec.sym || {}, halo = dark ? 'rgba(6,10,14,0.9)' : 'rgba(255,255,255,0.95)', o = { size: 26 * (spec.size || 1), infoFields: true, infoSize: 52, outlineWidth: 3, outlineColor: halo, infoOutlineWidth: 5, infoOutlineColor: halo, infoColor: dark ? '#FFFFFF' : '#0B1218' };
+    if (y.mono) { o.monoColor = dark ? '#FFFFFF' : '#0B1218'; o.fill = false; }
+    if (y.unique) o.uniqueDesignation = y.unique; if (y.higher) o.higherFormation = y.higher; if (y.info) o.additionalInformation = y.info; if (y.type) o.type = y.type;
+    if (y.reinforced) o.reinforcedReduced = y.reinforced; if (y.quantity) o.quantity = y.quantity; if (y.staff) o.staffComments = y.staff;
+    if (y.direction !== '' && y.direction != null && isFinite(+y.direction)) o.direction = String(+y.direction);
+    return new window.ms.Symbol(spec.sidc, o);
+  }
+  function labelLines(text) { return String(text || '').split(/\n/).map(function (s) { return s.trim(); }).filter(function (s, i, a) { return s || a.length === 1; }); }
+  function genImage(spec, ratio, dark) {
+    var R = ratio, c, ctx, w, h;
+    if (spec.t === 'marker') {
+      var r = 8.5 * spec.size, pad = 4 + r * 0.45, pin = spec.shape === 'pin';
+      w = (r * 1.3 + pad) * 2; h = pin ? (r * 3.2 + pad) * 2 : w;
+      c = canvas(w * R, h * R); ctx = c.getContext('2d'); ctx.scale(R, R);
+      drawMarker(ctx, spec.shape, spec.color, w / 2, h / 2, r, Math.max(1.4, 1.8 * Math.sqrt(spec.size)));
+    } else if (spec.t === 'mil') {
+      var sym = milSymbol(spec, dark), sz = sym.getSize(), an = sym.getAnchor(), sc = sym.asCanvas(R), oa = sym.getOctagonAnchor ? sym.getOctagonAnchor() : an;
+      w = sz.width + 2; h = sz.height + 2;
+      c = canvas(w * R, h * R); ctx = c.getContext('2d'); ctx.drawImage(sc, R, R);
+      var ex = { ax: an.x + 1, ay: an.y + 1 };
+      void oa; ex.fx = ex.ax; ex.fr = w - ex.ax; ex.ft = ex.ay; ex.fb = h - ex.ay;
+      return { canvas: c, w: w, h: h, ratio: R, ax: ex.ax, ay: ex.ay, fx: ex.fx, fr: ex.fr, ft: ex.ft, fb: ex.fb };
+    } else if (spec.t === 'label') {
+      var region = spec.style === 'region', fs = (spec.bold ? 15 : region ? 12.5 : 13) * spec.size, lines = labelLines(spec.text), wt = spec.bold ? 700 : 600, font = wt + ' ' + fs + 'px ' + (region ? SERIF : FONT), sfont = '700 ' + (fs * (spec.text ? 0.68 : 0.85)) + 'px ' + FONT;
+      if (region) lines = lines.map(function (l) { return l.toUpperCase().split('').join('\u2009'); });
+      var tmp = canvas(4, 4).getContext('2d'); tmp.font = font;
+      var widths = lines.map(function (l) { return tmp.measureText(l).width; }); tmp.font = sfont;
+      var supW = spec.sup ? tmp.measureText(spec.sup).width + fs * 0.15 : 0, lh = fs * 1.18, box = spec.style === 'box', px = box ? fs * 0.45 : 3.5, py = box ? fs * 0.28 : 3;
+      if (!lines.length || (lines.length === 1 && !lines[0])) { lines = ['']; widths = [0]; }
+      w = Math.max.apply(null, widths) + supW + px * 2; h = lh * lines.length + py * 2;
+      c = canvas(w * R, h * R); ctx = c.getContext('2d'); ctx.scale(R, R);
+      var light = !dark, txt = spec.color || (light ? '#10171D' : '#FFFFFF');
+      if (region && spec.color) { var rc = M.parseColor(spec.color) || [90, 90, 90, 1], tg = dark ? 255 : 22, mix = dark ? 0.55 : 0.62; txt = 'rgb(' + rc.slice(0, 3).map(function (v) { return Math.round(v + (tg - v) * mix); }).join(',') + ')'; light = !dark; }
+      else if (spec.color) { var cc = M.parseColor(spec.color); light = M.lum(cc) < 0.45; }
+      var halo = light ? 'rgba(255,255,255,0.96)' : 'rgba(6,10,14,0.92)';
+      if (box) { ctx.fillStyle = light ? 'rgba(255,255,255,0.94)' : 'rgba(8,14,20,0.88)'; roundRect(ctx, 0.5, 0.5, w - 1, h - 1, fs * 0.22); ctx.fill(); if (!spec.color) txt = light ? '#10171D' : '#FFFFFF'; }
+      ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+      lines.forEach(function (l, i) {
+        var y = py + lh * (i + 0.5), x = px + (Math.max.apply(null, widths) - widths[i]) / 2;
+        ctx.font = font;
+        if (spec.style === 'halo' || region) { ctx.lineWidth = Math.max(2.6, fs * (region ? 0.22 : 0.26)); ctx.strokeStyle = region ? halo.replace(/[\d.]+\)$/, '0.75)') : halo; ctx.strokeText(l, x, y); }
+        ctx.fillStyle = txt; ctx.fillText(l, x, y);
+        if (i === 0 && spec.sup) {
+          var sx = px + Math.max.apply(null, widths) + fs * 0.12, sy = y - fs * 0.32; ctx.font = sfont;
+          if (spec.style === 'halo') { ctx.lineWidth = Math.max(2.2, fs * 0.2); ctx.strokeStyle = halo; ctx.strokeText(spec.sup, sx, sy); }
+          ctx.fillStyle = light ? '#0F4761' : '#F2C14E'; ctx.fillText(spec.sup, sx, sy);
+        }
+      });
+    } else if (spec.t === 'head') {
+      // An arrowhead sized to its line: tip at the top center, barbs swept back, a thin halo to lift it off the basemap.
+      var lw = spec.w || 3, HL = 4.5 + lw * 2.6, HW = 3.5 + lw * 2.3, pd = 1.5;
+      w = HW + pd * 2; h = HL + pd * 2; c = canvas(w * R, h * R); ctx = c.getContext('2d'); ctx.scale(R, R);
+      ctx.beginPath(); ctx.moveTo(w / 2, pd); ctx.lineTo(w - pd, pd + HL); ctx.lineTo(w / 2, pd + HL * 0.76); ctx.lineTo(pd, pd + HL); ctx.closePath();
+      ctx.lineJoin = 'round'; ctx.lineWidth = 2; ctx.strokeStyle = dark ? 'rgba(6,10,14,.55)' : 'rgba(255,255,255,.85)'; ctx.stroke();
+      ctx.fillStyle = spec.color; ctx.fill();
+      return { canvas: c, w: w, h: h, ratio: R, tipPad: pd };
+    } else if (spec.t === 'hatch') {
+      w = 12; h = 12; c = canvas(w * R, h * R); ctx = c.getContext('2d'); ctx.scale(R, R);
+      ctx.strokeStyle = spec.color; ctx.globalAlpha = 0.75; ctx.lineWidth = 1.6; ctx.lineCap = 'square';
+      ctx.beginPath(); ctx.moveTo(-3, 3); ctx.lineTo(3, -3); ctx.moveTo(-3, 15); ctx.lineTo(15, -3); ctx.moveTo(9, 15); ctx.lineTo(15, 9); ctx.stroke();
+    } else return null;
+    return { canvas: c, w: w, h: h, ratio: R };
+  }
+  function roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r); ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h); ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r); ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath(); }
+  function getImage(key, ratio, dark) {
+    var spec = SPECS[key]; if (!spec) return null;
+    var ck = key + '@' + ratio + (dark ? 'd' : 'l');
+    if (!IMG[ck]) { try { IMG[ck] = genImage(spec, ratio, dark); } catch (e) { IMG[ck] = null; } }
+    return IMG[ck];
+  }
+  function imageData(im) { return im.canvas.getContext('2d').getImageData(0, 0, im.canvas.width, im.canvas.height); }
+  function symThumb(sidc, sym) {
+    var k = sidc + JSON.stringify(sym || {}); if (SYM_SVG[k]) return SYM_SVG[k];
+    try { var s = milSymbol({ sidc: sidc, sym: sym || {}, size: 1 }, false); SYM_SVG[k] = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s.asSVG()); } catch (e) { SYM_SVG[k] = ''; }
+    return SYM_SVG[k];
+  }
+
+  // ---------- basemaps ----------
+  var OFM = 'OpenFreeMap · © OpenMapTiles · Data © OpenStreetMap contributors';
+  var BASEMAPS = [
+    ['liberty', 'Liberty', 'Full detail: roads, places and land cover.', 'https://tiles.openfreemap.org/styles/liberty', OFM],
+    ['positron', 'Positron', 'Light and quiet. Made for data on top.', 'https://tiles.openfreemap.org/styles/positron', OFM],
+    ['bright', 'Bright', 'A classic, colorful road map.', 'https://tiles.openfreemap.org/styles/bright', OFM],
+    ['dark', 'Dark', 'Dark gray and quiet.', 'https://tiles.openfreemap.org/styles/dark', OFM],
+    ['fiord', 'Fiord', 'Deep blue.', 'https://tiles.openfreemap.org/styles/fiord', OFM],
+    ['outline', 'Plain outline', 'Coastlines and borders only. Works offline.', '', 'Natural Earth (public domain)'],
+    ['custom', 'Your own style', 'Any MapLibre style URL, such as a MapTiler style with your key or your own tiles.', '', '']];
+  var IMAGERY = [['', 'None'], ['s2-2016', 'Sentinel-2 cloudless 2016 (CC BY 4.0, fine for commercial use)'], ['s2-2024', 'Sentinel-2 cloudless 2024 (CC BY-NC-SA 4.0, non-commercial only)']];
+  var IMG_SRC = {
+    's2-2016': { url: 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg', attr: 'Sentinel-2 cloudless 2016 by EOX IT Services GmbH (contains modified Copernicus Sentinel data 2016), CC BY 4.0' },
+    's2-2024': { url: 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/g/{z}/{y}/{x}.jpg', attr: 'Sentinel-2 cloudless 2024 by EOX IT Services GmbH (contains modified Copernicus Sentinel data 2024), CC BY-NC-SA 4.0' } };
+  var RELIEF_URL = 'https://tiles.openfreemap.org/natural_earth/ne2sr/{z}/{x}/{y}.png', DEM_URL = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
+  var STYLE_CACHE = {};
+  function baseDef(id) { return BASEMAPS.filter(function (b) { return b[0] === id; })[0] || BASEMAPS[0]; }
+  function fetchStyle(url) {
+    if (!STYLE_CACHE[url]) STYLE_CACHE[url] = fetch(url, { credentials: 'omit' }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function (s) { if (!s || !s.layers) throw new Error('not a style'); return s; });
+    STYLE_CACHE[url].catch(function () { delete STYLE_CACHE[url]; });
+    return STYLE_CACHE[url];
+  }
+  var OUTLINE = null;
+  var WORLD = null;
+  // Land rings and border lines from the built-in Natural Earth outlines, as [longitude, latitude] lists.
+  function world() {
+    if (WORLD) return WORLD;
+    function rings(d) {
+      var out = [];
+      d.split('M').forEach(function (seg) {
+        if (!seg.trim()) return; seg = seg.replace(/Z\s*$/, '');
+        var pts = seg.split('L').map(function (p) { var n = p.trim().split(/\s+/); return [+n[0], -n[1]]; }).filter(function (p) { return isFinite(p[0]) && isFinite(p[1]); });
+        if (pts.length > 1) out.push(pts);
+      });
+      return out;
+    }
+    WORLD = { land: rings(WORLD_GEO.land).filter(function (r) { return r.length > 2; }).map(function (r) { return r.concat([r[0]]); }), borders: WORLD_GEO.borders ? rings(WORLD_GEO.borders) : [] };
+    return WORLD;
+  }
+  function outlineStyle() {
+    if (!OUTLINE) {
+      var land = world().land.map(function (r) { return { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [r] } }; }), borders = world().borders.map(function (r) { return { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: r } }; });
+      OUTLINE = { version: 8, name: 'Plain outline', sources: { 'om-land': { type: 'geojson', data: { type: 'FeatureCollection', features: land } }, 'om-borders': { type: 'geojson', data: { type: 'FeatureCollection', features: borders } } },
+        layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#B7CCD8' } }, { id: 'om-land', type: 'fill', source: 'om-land', paint: { 'fill-color': '#F1EEE6', 'fill-outline-color': '#9AA6AE' } },
+          { id: 'om-coast', type: 'line', source: 'om-land', paint: { 'line-color': '#8E9DA7', 'line-width': 0.7 } }, { id: 'om-borders', type: 'line', source: 'om-borders', paint: { 'line-color': '#8A8F96', 'line-width': 0.9, 'line-dasharray': [3, 1.5] } }] };
+    }
+    return JSON.parse(JSON.stringify(OUTLINE));
+  }
+  // Does the basemap read as dark? Labels, symbols and arrowheads take their halos from this.
+  function isDark(p) {
+    var b = p.base;
+    if (b.imagery && b.imageryOpacity > 0.4) return true;
+    if (b.tone === 'dark' || b.tone === 'night') return true;
+    if (b.tone === 'original' && (b.style === 'dark' || b.style === 'fiord')) return true;
+    return false;
+  }
+  // Basemap plus overlays (relief, imagery, hillshade), restyled for tone, label density and borders.
+  function composeBase(p, raw, id) {
+    var s = JSON.parse(JSON.stringify(raw)), b = p.base, L = s.layers, i;
+    s.sources = s.sources || {};
+    var after = 0; for (i = 0; i < L.length; i++) { if (L[i].type === 'background') after = i + 1; }
+    if (id === 'outline') after = 2;
+    if (b.relief) { s.sources['om-relief'] = { type: 'raster', tiles: [RELIEF_URL], tileSize: 256, maxzoom: 6, attribution: '' }; L.splice(after, 0, { id: 'om-relief', type: 'raster', source: 'om-relief', paint: { 'raster-opacity': b.reliefOpacity, 'raster-fade-duration': 0 } }); after++; }
+    var im = b.imagery && IMG_SRC[b.imagery];
+    if (im) {
+      s.sources['om-img'] = { type: 'raster', tiles: [im.url], tileSize: 256, maxzoom: 14 };
+      L.splice(after, 0, { id: 'om-img', type: 'raster', source: 'om-img', paint: { 'raster-opacity': b.imageryOpacity, 'raster-fade-duration': 0 } }); after++;
+      if (b.imageryOpacity >= 0.5) L.forEach(function (l) { if (l.id !== 'om-img' && (l.type === 'fill' || l.type === 'fill-extrusion' || (l.type === 'background' && l.id !== 'om-img'))) { l.layout = l.layout || {}; l.layout.visibility = 'none'; } if (l.type === 'raster' && l.id !== 'om-img' && l.id !== 'om-relief') { l.layout = l.layout || {}; l.layout.visibility = 'none'; } });
+    }
+    if (b.hillshade) {
+      s.sources['om-dem'] = { type: 'raster-dem', tiles: [DEM_URL], tileSize: 256, maxzoom: 15, encoding: 'terrarium' };
+      var at = L.length; for (i = after; i < L.length; i++) { if (L[i].type === 'line' || L[i].type === 'symbol' || L[i].type === 'fill-extrusion') { at = i; break; } }
+      L.splice(at, 0, { id: 'om-hillshade', type: 'hillshade', source: 'om-dem', paint: { 'hillshade-exaggeration': b.hillshadeOpacity, 'hillshade-shadow-color': '#1E2125', 'hillshade-highlight-color': '#FFFFFF', 'hillshade-accent-color': '#2C3034' } });
+    }
+    var out = M.restyle(s, { tone: b.tone, labels: b.labels, borders: b.borders, modern: b.modern });
+    if (id === 'outline' && b.tone !== 'original') { /* restyle covers outline colors */ }
+    return out;
+  }
+  // The credit line every image must carry. fallback: the outline is standing in for a basemap that failed to load.
+  function attribution(p, fallback) {
+    var b = p.base, d = baseDef(b.style), parts = [];
+    var a = fallback ? baseDef('outline')[4] : b.style === 'custom' ? (b.customAttr || 'Basemap: credit the provider in Basemap → Attribution') : d[4];
+    if (a) parts.push(a);
+    if (b.relief) parts.push('Shaded relief: Natural Earth');
+    if (b.imagery && IMG_SRC[b.imagery]) parts.push(IMG_SRC[b.imagery].attr);
+    if (b.hillshade) parts.push('Elevation: Terrain Tiles (Mapzen, AWS Open Data; SRTM, GMTED2010, ETOPO1 and others)');
+    var hb = {}; p.sources.forEach(function (s) { if (/aourednik\/historical-basemaps/.test(s.fields.url || '')) hb[s.id] = 1; });
+    if (M.shown(p).some(function (f) { return f.cites.some(function (c) { return hb[c.src]; }); })) parts.push('Historical borders: Historical Basemaps by A. Ourednik (GPL-3.0)');
+    return parts.join(' · ');
+  }
+  // Loads a project's basemap. Resolves with { style, fallback, error }: on failure, the plain outline with a message saying why.
+  function buildStyle(p) {
+    var b = p.base, d = baseDef(b.style), url = b.style === 'custom' ? b.customUrl : d[3];
+    var q = b.style === 'outline' ? Promise.resolve(outlineStyle()) : url ? fetchStyle(url) : Promise.reject(new Error('Type a style URL under Basemap.'));
+    return q.then(function (raw) { return { style: composeBase(p, raw, b.style), fallback: false, error: '' }; }, function (err) {
+      return { style: composeBase(p, outlineStyle(), 'outline'), fallback: true, error: (b.style === 'custom' ? 'That style could not be loaded (' + err.message + '). ' : 'The basemap could not be loaded, which usually means no internet connection. ') + 'Showing the plain outline until it can.' };
+    });
+  }
+
+  // ---------- data layers ----------
+  function dataLayers(u, L, forExport) {
+    var sym = L.symbolScale, txt = L.textScale, g = function (v) { return ['==', ['get', 'g'], v]; };
+    var w = ['*', u, ['get', 'w']], round = { 'line-cap': 'round', 'line-join': 'round' };
+    var layers = [
+      { id: 'om-frame', type: 'fill', source: 'om', filter: g('frame'), paint: { 'fill-color': '#000000', 'fill-opacity': 0 } },
+      { id: 'om-shadow', type: 'fill', source: 'om', filter: g('shadow'), paint: { 'fill-color': '#000000', 'fill-opacity': 0.22, 'fill-translate': [1.6 * u, 2.6 * u], 'fill-antialias': true } },
+      { id: 'om-fill', type: 'fill', source: 'om', filter: g('fill'), paint: { 'fill-color': ['get', 'c'], 'fill-opacity': ['get', 'o'] } },
+      { id: 'om-hatch', type: 'fill', source: 'om', filter: g('hatch'), paint: { 'fill-pattern': ['get', 'pat'] } },
+      { id: 'om-band', type: 'line', source: 'om', filter: g('band'), layout: { 'line-join': 'round' }, paint: { 'line-color': ['get', 'c'], 'line-width': w, 'line-offset': ['*', u, ['get', 'off']], 'line-opacity': 0.5 } },
+      { id: 'om-soft', type: 'line', source: 'om', filter: g('soft'), layout: round, paint: { 'line-color': ['get', 'c'], 'line-width': w, 'line-blur': ['*', 0.9, w], 'line-opacity': 0.9 } },
+      { id: 'om-sel-line', type: 'line', source: 'om', filter: ['all', ['==', ['get', 'sel'], 1], ['any', g('outline'), g('line'), g('band'), g('soft'), g('frame')]], layout: round, paint: { 'line-color': '#F2A900', 'line-width': ['+', w, 8 * u], 'line-opacity': 0.5 } },
+      { id: 'om-outline', type: 'line', source: 'om', filter: ['all', g('outline'), ['==', ['get', 'd'], 'solid']], layout: round, paint: { 'line-color': ['get', 'c'], 'line-width': w } },
+      { id: 'om-outline-dash', type: 'line', source: 'om', filter: ['all', g('outline'), ['==', ['get', 'd'], 'dash']], layout: { 'line-join': 'round' }, paint: { 'line-color': ['get', 'c'], 'line-width': w, 'line-dasharray': [3, 2] } },
+      { id: 'om-outline-dot', type: 'line', source: 'om', filter: ['all', g('outline'), ['==', ['get', 'd'], 'dot']], layout: round, paint: { 'line-color': ['get', 'c'], 'line-width': w, 'line-dasharray': [0.1, 2] } },
+      { id: 'om-casing', type: 'line', source: 'om', filter: g('line'), layout: round, paint: { 'line-color': ['get', 'cas'], 'line-width': ['+', w, 2.4 * u], 'line-opacity': 0.6 } },
+      { id: 'om-line', type: 'line', source: 'om', filter: ['all', g('line'), ['==', ['get', 'd'], 'solid']], layout: round, paint: { 'line-color': ['get', 'c'], 'line-width': w } },
+      { id: 'om-line-dash', type: 'line', source: 'om', filter: ['all', g('line'), ['==', ['get', 'd'], 'dash']], layout: { 'line-join': 'round' }, paint: { 'line-color': ['get', 'c'], 'line-width': w, 'line-dasharray': [3, 2] } },
+      { id: 'om-line-dot', type: 'line', source: 'om', filter: ['all', g('line'), ['==', ['get', 'd'], 'dot']], layout: round, paint: { 'line-color': ['get', 'c'], 'line-width': w, 'line-dasharray': [0.1, 2] } },
+      { id: 'om-head', type: 'symbol', source: 'om', filter: g('head'), layout: { 'icon-image': ['get', 'img'], 'icon-size': ['*', u, ['get', 'sz']], 'icon-rotate': ['get', 'rot'], 'icon-rotation-alignment': 'map', 'icon-anchor': 'top', 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-pitch-alignment': 'map' } },
+      { id: 'om-sel-pt', type: 'circle', source: 'om', filter: ['all', ['==', ['get', 'sel'], 1], g('point')], paint: { 'circle-radius': 21 * u * sym, 'circle-color': 'rgba(242,169,0,0.16)', 'circle-stroke-color': '#F2A900', 'circle-stroke-width': 2 } },
+      { id: 'om-point', type: 'symbol', source: 'om', filter: g('point'), layout: { 'icon-image': ['get', 'img'], 'icon-size': u * sym, 'icon-offset': ['coalesce', ['get', 'po'], ['literal', [0, 0]]], 'icon-allow-overlap': true, 'icon-ignore-placement': false, 'icon-padding': 2, 'symbol-z-order': 'source' } },
+      { id: 'om-label', type: 'symbol', source: 'om', filter: g('label'), layout: { 'icon-image': ['get', 'img'], 'icon-size': u * txt, 'icon-anchor': ['get', 'an'], 'icon-offset': ['get', 'off'], 'icon-allow-overlap': true, 'icon-ignore-placement': false, 'icon-padding': 3, 'symbol-z-order': 'source' } }];
+    if (!forExport) layers.push(
+      { id: 'om-draft-fill', type: 'fill', source: 'om-edit', filter: ['==', ['get', 'r'], 'fill'], paint: { 'fill-color': '#F2A900', 'fill-opacity': 0.15 } },
+      { id: 'om-draft-line', type: 'line', source: 'om-edit', filter: ['==', ['get', 'r'], 'line'], layout: round, paint: { 'line-color': '#F2A900', 'line-width': 2.2, 'line-dasharray': [2, 1.5] } },
+      { id: 'om-vtx-mid', type: 'circle', source: 'om-edit', filter: ['==', ['get', 'r'], 'm'], paint: { 'circle-radius': 5, 'circle-color': '#FFFFFF', 'circle-opacity': 0.8, 'circle-stroke-color': '#F2A900', 'circle-stroke-width': 1.5 } },
+      { id: 'om-vtx', type: 'circle', source: 'om-edit', filter: ['any', ['==', ['get', 'r'], 'v'], ['==', ['get', 'r'], 'c'], ['==', ['get', 'r'], 'rad']], paint: { 'circle-radius': 7, 'circle-color': '#F2A900', 'circle-stroke-color': '#0B1218', 'circle-stroke-width': 2 } },
+      { id: 'om-snap', type: 'circle', source: 'om-edit', filter: ['==', ['get', 'r'], 'snap'], paint: { 'circle-radius': 10, 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-color': '#F2A900', 'circle-stroke-width': 2.5 } });
+    return layers;
+  }
+  var EMPTY = { type: 'FeatureCollection', features: [] };
+  function withData(base, fc, u, L, forExport) {
+    var s = JSON.parse(JSON.stringify(base));
+    s.sources.om = { type: 'geojson', data: fc || EMPTY, tolerance: 0.2 };
+    if (!forExport) s.sources['om-edit'] = { type: 'geojson', data: EMPTY };
+    s.layers = s.layers.concat(dataLayers(u, L, forExport));
+    return s;
+  }
+  // The features to draw (fc) and the scanned maps under them (images), with every image they need registered.
+  // o: M.render's options plus ratio and dark, which size the images used to place labels.
+  function render(p, o) {
+    o = Object.assign({}, o); var ratio = o.ratio || 2, dark = o.dark == null ? isDark(p) : o.dark;
+    if (!o.measure) o.measure = function (key) { var im = getImage(key, ratio, dark); return im ? { w: im.w, h: im.h, ax: im.ax, ay: im.ay, fx: im.fx, fr: im.fr, ft: im.ft, fb: im.fb } : null; };
+    var r = M.render(p, o), fresh = false;
+    Object.keys(r.specs).forEach(function (k) { if (!SPECS[k]) { SPECS[k] = r.specs[k]; fresh = true; } });
+    if (fresh) { r = M.render(p, o); Object.keys(r.specs).forEach(function (k) { SPECS[k] = r.specs[k]; }); }
+    return r;
+  }
+  var KEYS = new Map();
+  // A short key for a picture, so a big data: URL is compared cheaply.
+  function imgKey(d) {
+    d = String(d || ''); if (d.indexOf('data:') !== 0) return d;
+    var k = KEYS.get(d); if (k) return k;
+    var h = 5381, step = Math.max(1, Math.floor(d.length / 6000));
+    for (var i = 0; i < d.length; i += step) h = ((h << 5) + h + d.charCodeAt(i)) | 0;
+    k = 'm' + (h >>> 0).toString(36) + d.length.toString(36); KEYS.set(d, k); return k;
+  }
+  function zoomFor(refZoom, w) { return refZoom + Math.log2(w / M.REF_W); }
+  // Keeps a map's scanned-map layers in step with the project: adds, moves, fades and removes them under the data layers.
+  function syncImages(m, images) {
+    if (!m.getLayer('om-frame')) return;
+    var have = m.__omImgs || (m.__omImgs = {}), want = {};
+    images.forEach(function (im) {
+      if (!/^(data:|https:)/.test(im.img)) return;
+      var id = 'omi-' + im.id, key = imgKey(im.img), cs = JSON.stringify(im.coords), src = m.getSource(id);
+      want[id] = 1;
+      if (src && (!have[id] || have[id].key !== key)) { if (m.getLayer(id)) m.removeLayer(id); m.removeSource(id); src = null; }
+      try {
+        if (!src) { m.addSource(id, { type: 'image', url: im.img, coordinates: im.coords }); m.addLayer({ id: id, type: 'raster', source: id, paint: { 'raster-opacity': im.o, 'raster-fade-duration': 0 } }, 'om-frame'); have[id] = { key: key, cs: cs, o: im.o }; }
+        else { if (have[id].cs !== cs) { src.setCoordinates(im.coords); have[id].cs = cs; } if (have[id].o !== im.o) { m.setPaintProperty(id, 'raster-opacity', im.o); have[id].o = im.o; } }
+      } catch (e) { /* a bad picture: the Check tab reports it */ }
+    });
+    Object.keys(have).forEach(function (id) { if (want[id]) return; if (m.getLayer(id)) m.removeLayer(id); if (m.getSource(id)) m.removeSource(id); delete have[id]; });
+  }
+  function addMissing(m, id, ratio, dark) {
+    if (m.hasImage(id)) return;
+    var im = getImage(id, ratio, dark); if (!im) return;
+    try { m.addImage(id, imageData(im), { pixelRatio: im.ratio }); } catch (e) { /* already added */ }
+  }
+  // A key's sample of a layer or symbol, drawn into a box at (x, y, w, h). u: the layout scale; k: pixels per CSS pixel; dark: for symbol halos.
+  function drawSwatch(ctx, it, x, y, w, h, u, k, dark) {
+    var cx = x + w / 2, cy = y + h / 2, col = it.color || '#2F6FDE';
+    ctx.save();
+    if (it.kind === 'point') { drawMarker(ctx, it.marker || 'circle', col, cx, it.marker === 'pin' ? cy + h * 0.32 : cy, Math.min(h * (it.marker === 'pin' ? 0.17 : 0.3), 9 * u), 1.6 * u); }
+    else if (it.kind === 'symbol') {
+      var bare = { mono: it.sym && it.sym.mono }, key = 'mil-legend-' + it.sidc + (bare.mono ? 'm' : ''); SPECS[key] = { t: 'mil', sidc: it.sidc, sym: bare, size: 1 };
+      var im = getImage(key, Math.max(2, Math.ceil(k)), dark);
+      if (im) { var sc = Math.min((w * 1.05) / im.w, (h * 0.95) / im.h) ; ctx.drawImage(im.canvas, cx - (im.w * sc) / 2, cy - (im.h * sc) / 2, im.w * sc, im.h * sc); }
+    } else if (it.kind === 'line') {
+      ctx.strokeStyle = col; ctx.lineWidth = 3 * u; ctx.lineCap = 'round';
+      if (it.dash === 'dash') ctx.setLineDash([7 * u, 4.5 * u]); else if (it.dash === 'dot') { ctx.setLineDash([0.1, 5 * u]); ctx.lineWidth = 3.4 * u; }
+      ctx.beginPath(); ctx.moveTo(x + 2 * u, cy); ctx.lineTo(x + w - 2 * u, cy); ctx.stroke();
+    } else if (it.kind === 'arrow') {
+      ctx.fillStyle = col; ctx.beginPath(); var t = h * 0.14;
+      var aw = w * 0.86; ctx.moveTo(x + 1 * u, cy - t * 0.7); ctx.lineTo(x + aw * 0.6, cy - t); ctx.lineTo(x + aw * 0.6, cy - t * 2.2); ctx.lineTo(x + aw, cy); ctx.lineTo(x + aw * 0.6, cy + t * 2.2); ctx.lineTo(x + aw * 0.6, cy + t); ctx.lineTo(x + 1 * u, cy + t * 0.7); ctx.closePath(); ctx.fill();
+    } else if (it.kind === 'area' || it.kind === 'ring') {
+      var rx = x + 2 * u, ry = cy - h * 0.3, rw = w - 4 * u, rh = h * 0.6, cc = M.parseColor(col) || [47, 111, 222, 1];
+      ctx.beginPath(); if (it.kind === 'ring') ctx.ellipse(cx, cy, rw / 2, rh / 2, 0, 0, Math.PI * 2); else ctx.rect(rx, ry, rw, rh);
+      ctx.fillStyle = 'rgba(' + cc[0] + ',' + cc[1] + ',' + cc[2] + ',' + Math.max(0.15, it.fill == null ? 0.25 : it.fill) + ')'; ctx.fill();
+      if (it.hatch) { var hk = 'hatch-legend-' + col; SPECS[hk] = { t: 'hatch', color: col }; var hi = getImage(hk, 2, false); if (hi) { ctx.save(); ctx.clip(); var pat = ctx.createPattern(hi.canvas, 'repeat'); ctx.fillStyle = pat; ctx.fillRect(rx, ry, rw, rh); ctx.restore(); } }
+      if (it.edge === 'soft') { ctx.save(); ctx.clip(); ctx.shadowColor = col; ctx.shadowBlur = 5 * u; ctx.strokeStyle = col; ctx.lineWidth = 3 * u; ctx.stroke(); ctx.restore(); }
+      else if (it.edge === 'band') { ctx.save(); ctx.clip(); ctx.globalAlpha = 0.5; ctx.strokeStyle = col; ctx.lineWidth = 8 * u; ctx.stroke(); ctx.restore(); ctx.strokeStyle = col; ctx.lineWidth = 1 * u; ctx.stroke(); }
+      else { ctx.strokeStyle = col; ctx.lineWidth = 1.8 * u; if (it.dash === 'dash') ctx.setLineDash([5 * u, 3 * u]); else if (it.dash === 'dot') ctx.setLineDash([1 * u, 3 * u]); ctx.stroke(); }
+    } else if (it.kind === 'label') { ctx.fillStyle = col; ctx.font = '700 ' + (h * 0.5) + 'px ' + FONT; ctx.textAlign = 'center'; ctx.fillText('Aa', cx, cy + h * 0.17); }
+    ctx.restore();
+  }
+
+  // ---------- automatic label positions ----------
+  // Picks a position for each label left on Automatic, keeping clear of symbols, panels, lines, the frame's edge and other labels.
+  // m: a MapLibre map; r: render()'s result; L: the project's layout; u: the layout scale; blockers: boxes to keep clear of (panels); w, h: the frame.
+  function placeAuto(m, r, L, u, ratio, dark, blockers, w, h) {
+    if (!m || !r) return { place: {}, items: [] };
+    var sl = u * L.textScale, ss = u * L.symbolScale, items = [], bl = (blockers || []).slice();
+    function pt(ll) { var p = m.project(ll); return [p.x, p.y]; }
+    r.icons.forEach(function (ic) { var p = pt(ic.lp); bl.push([p[0] - ic.ext.l * ss, p[1] - ic.ext.t * ss, p[0] + ic.ext.r * ss, p[1] + ic.ext.b * ss]); });
+    // lines and bold arrows, as small boxes along their length
+    var c = m.getCenter(), mpp = M.metresPerPixel(c.lat, m.getZoom()) || 1, soft = [];
+    (r.paths || []).forEach(function (pa) {
+      var half = pa.km ? Math.max(3, pa.km * 500 / mpp) : (pa.px * u) / 2 + 3, pts = pa.cs.map(pt), step = Math.max(6, half);
+      for (var i = 1; i < pts.length; i++) {
+        var a = pts[i - 1], b = pts[i], n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / step));
+        for (var j = 0; j <= n; j++) { var x = a[0] + (b[0] - a[0]) * j / n, y = a[1] + (b[1] - a[1]) * j / n; soft.push([x - half, y - half, x + half, y + half]); }
+      }
+    });
+    r.labels.forEach(function (lb) {
+      var im = getImage(lb.key, ratio, dark); if (!im) return;
+      var p = pt(lb.lp);
+      if (!lb.movable) { bl.push(M.labelBox(p, lb.an, lb.off, im.w, im.h, sl)); return; }
+      items.push({ id: lb.fid, pt: p, cands: M.SPOTS.map(function (pos) { var sp = M.labelSpot(pos, lb.ext, L.symbolScale, L.textScale); return { pos: pos, box: M.labelBox(p, sp.an, sp.off, im.w, im.h, sl) }; }) });
+    });
+    return { place: M.placeLabels(items, bl, [0, 0, w, h], r.icons.map(function (ic) { return { id: ic.fid, pt: pt(ic.lp) }; }), soft), items: items };
+  }
+
+  // ---------- a map to read, not edit ----------
+  // Shows a project in a page element with pan and zoom. Needs maplibregl (and window.ms when the map has military symbols).
+  // o: { bounds: [[w, s], [e, n]] to fit instead of the saved view, maxZoom, scale (symbol and text size), cooperative (Ctrl+scroll to zoom),
+  //      popup(feature) -> HTML or '' for the box shown when a feature is clicked, onReady(api), onError(message) }
+  function mount(el, p, o) {
+    o = o || {}; var ML = window.maplibregl, m = null, place = {}, ratio = Math.min(3, Math.max(2, Math.ceil(window.devicePixelRatio || 1))), dark = isDark(p), L = p.layout, gone = false, pop = null;
+    var u = Math.max(0.6, Math.min(1.3, (el.clientWidth || 700) / M.REF_W)) * (o.scale || 1);
+    var api = { map: null, error: '', fallback: false, u: u, dark: dark, destroy: function () { gone = true; if (m) { try { m.remove(); } catch (e) { /* already gone */ } } m = null; }, resize: function () { if (m) { m.resize(); sync(); } } };
+    if (!ML) { api.error = 'The map library did not load.'; if (o.onError) o.onError(api.error); return api; }
+    buildStyle(p).then(function (res) {
+      if (gone) return;
+      api.fallback = res.fallback; api.error = res.error;
+      // the first drawing goes in with the style: a GeoJSON source that starts empty may not redraw when its data arrives
+      var first = render(p, { markers: L.markers, theme: dark ? 'dark' : 'light', selected: '', symScale: L.symbolScale, txtScale: L.textScale, u: u, mpp: 1000, place: {}, ratio: ratio, dark: dark });
+      var opts = { container: el, style: withData(res.style, first.fc, u, L, true), attributionControl: false, dragRotate: false, pitchWithRotate: false, touchPitch: false, cooperativeGestures: !!o.cooperative, fadeDuration: 0, maxPitch: 60 };
+      if (o.bounds) { opts.bounds = o.bounds; opts.fitBoundsOptions = { padding: Math.min(60, (el.clientWidth || 600) * 0.08), maxZoom: o.maxZoom || 10 }; }
+      else { opts.center = p.view.center; opts.zoom = zoomFor(p.view.zoom, el.clientWidth || 700); opts.bearing = p.view.bearing || 0; opts.pitch = p.view.pitch || 0; }
+      try { m = new ML.Map(opts); } catch (err) { api.error = 'This browser could not draw the map (' + err.message + ').'; if (o.onError) o.onError(api.error); return; }
+      api.map = m;
+      m.addControl(new ML.NavigationControl({ showCompass: !!(p.view.bearing) }), 'top-right');
+      m.addControl(new ML.AttributionControl({ compact: true, customAttribution: attribution(p, res.fallback) }), 'bottom-right');
+      m.on('styleimagemissing', function (e) { addMissing(m, e.id, ratio, dark); });
+      m.on('load', function () { syncImages(m, first.images); sync(); if (o.onReady) o.onReady(api); });
+      m.on('error', function () { /* a tile that failed to load or parse: the rest of the map still draws */ });
+      m.on('moveend', sync);
+      var HITS = ['om-point', 'om-label', 'om-line', 'om-line-dash', 'om-line-dot', 'om-head', 'om-outline', 'om-outline-dash', 'om-outline-dot', 'om-band', 'om-soft', 'om-fill'];
+      function hit(pt) { var have = HITS.filter(function (l) { return m.getLayer(l); }); var fs = have.length ? m.queryRenderedFeatures([[pt.x - 6, pt.y - 6], [pt.x + 6, pt.y + 6]], { layers: have }) : []; return fs.length ? fs[0] : null; }
+      m.on('mousemove', function (e) { var h = hit(e.point); m.getCanvas().style.cursor = h && o.popup ? 'pointer' : ''; });
+      m.on('click', function (e) {
+        if (!o.popup) return; var h = hit(e.point); if (pop) { pop.remove(); pop = null; }
+        var f = h && p.features.filter(function (x) { return x.id === h.properties.fid; })[0]; if (!f) return;
+        var html = o.popup(f); if (!html) return;
+        pop = new ML.Popup({ maxWidth: '320px', className: 'om-pop' }).setLngLat(f.kind === 'point' || f.kind === 'symbol' || f.kind === 'label' || f.kind === 'ring' ? f.coords[0] : e.lngLat).setHTML(html).addTo(m);
+      });
+    });
+    function sync() {
+      if (!m || gone || !m.getSource('om')) return;
+      var c = m.getCenter(), ro = { markers: L.markers, theme: dark ? 'dark' : 'light', selected: '', symScale: L.symbolScale, txtScale: L.textScale, u: u, mpp: M.metresPerPixel(c.lat, m.getZoom()), place: place, ratio: ratio, dark: dark };
+      var r = render(p, ro), cv = m.getCanvas(), pl = placeAuto(m, r, L, u, ratio, dark, o.blockers || [], cv.clientWidth, cv.clientHeight).place;
+      if (JSON.stringify(pl) !== JSON.stringify(place)) { place = pl; ro.place = pl; r = render(p, ro); }
+      m.getSource('om').setData(r.fc); syncImages(m, r.images);
+    }
+    api.sync = sync;
+    return api;
+  }
+
+  return { placeAuto: placeAuto, mount: mount, FONT: FONT, SERIF: SERIF, SPECS: SPECS, canvas: canvas, markerPath: markerPath, drawMarker: drawMarker, milSymbol: milSymbol, labelLines: labelLines, genImage: genImage, roundRect: roundRect,
+    getImage: getImage, imageData: imageData, symThumb: symThumb, drawSwatch: drawSwatch, BASEMAPS: BASEMAPS, IMAGERY: IMAGERY, IMG_SRC: IMG_SRC, baseDef: baseDef, fetchStyle: fetchStyle, world: world,
+    outlineStyle: outlineStyle, isDark: isDark, composeBase: composeBase, attribution: attribution, buildStyle: buildStyle, dataLayers: dataLayers, withData: withData, EMPTY: EMPTY, render: render,
+    imgKey: imgKey, syncImages: syncImages, addMissing: addMissing, zoomFor: zoomFor };
+})();
+</script>
+<script type="application/json" id="example-data">{"app":"OSINT Map Builder","format":2,"meta":{"title":"D-Day: The Normandy Landings","dek":"Assault divisions on 6 June 1944 and the German divisions facing them","byline":"Example map built with the OSINT Map Builder","credit":"","date":"Positions are approximate"},"view":{"center":[-0.79,49.385],"zoom":8.5,"bearing":0,"pitch":0},"base":{"style":"liberty","tone":"muted","labels":"places","borders":false,"relief":false,"imagery":"","hillshade":false,"coords":"dd"},"layout":{"preset":"substack-wide","theme":"dark","title":true,"titlePos":"tl","legend":true,"legendPos":"tr","legendTitle":"Key","symbolKey":true,"sources":"short","markers":true,"scale":true,"north":true,"credit":true,"textScale":1,"symbolScale":1},"layers":[{"id":"l1","name":"Allied assault divisions","color":"#2F6FDE"},{"id":"l2","name":"Allied airborne divisions","color":"#2F6FDE"},{"id":"l3","name":"German divisions","color":"#D7263D"},{"id":"l4","name":"Seaborne landings","color":"#2F6FDE"}],"features":[{"id":"f1","kind":"arrow","layer":"l4","coords":[[-1.03,49.6],[-1.12,49.5],[-1.175,49.425]],"label":"UTAH","note":"Arrow drawn by the map maker toward the beach the source names.","style":{"width":2.6,"smooth":true,"fill":0.88,"outline":true,"labelStyle":"box","labelPos":"center"},"cites":[{"src":"s1","loc":"","quote":"","note":""}]},{"id":"f2","kind":"arrow","layer":"l4","coords":[[-0.84,49.56],[-0.855,49.46],[-0.87,49.38]],"label":"OMAHA","note":"Arrow drawn by the map maker toward the beach the source names.","style":{"width":2.6,"smooth":true,"fill":0.88,"outline":true,"labelStyle":"box","labelPos":"center"},"cites":[{"src":"s1","loc":"","quote":"","note":""}]},{"id":"f3","kind":"arrow","layer":"l4","coords":[[-0.53,49.53],[-0.55,49.43],[-0.565,49.355]],"label":"GOLD","note":"Arrow drawn by the map maker toward the beach the source names.","style":{"width":2.6,"smooth":true,"fill":0.88,"outline":true,"labelStyle":"box","labelPos":"center"},"cites":[{"src":"s1","loc":"","quote":"","note":""}]},{"id":"f4","kind":"arrow","layer":"l4","coords":[[-0.39,49.53],[-0.41,49.43],[-0.43,49.345]],"label":"JUNO","note":"Arrow drawn by the map maker toward the beach the source names.","style":{"width":2.6,"smooth":true,"fill":0.88,"outline":true,"labelStyle":"box","labelPos":"center"},"cites":[{"src":"s1","loc":"","quote":"","note":""},{"src":"s3","loc":"p. 72","quote":"","note":""}]},{"id":"f5","kind":"arrow","layer":"l4","coords":[[-0.23,49.5],[-0.26,49.39],[-0.29,49.3]],"label":"SWORD","note":"Arrow drawn by the map maker toward the beach the source names.","style":{"width":2.6,"smooth":true,"fill":0.88,"outline":true,"labelStyle":"box","labelPos":"center"},"cites":[{"src":"s1","loc":"","quote":"","note":""}]},{"id":"f6","kind":"symbol","layer":"l1","coords":[[-1.26,49.44]],"label":"US 4th","note":"Placed by the map maker at the general position the source describes; the source gives no coordinates.","style":{"size":1,"labelPos":"auto"},"sym":{"tpl":"S*G*UCI--------","affil":"F","status":"P","ech":"I","hq":"-","unique":"4","key":"Allied infantry division"},"cites":[{"src":"s1","loc":"","quote":"","note":""},{"src":"s2","loc":"p. 10","quote":"The 4th Division was to assault UTAH Beach at H Hour","note":""}]},{"id":"f7","kind":"symbol","layer":"l1","coords":[[-0.975,49.335]],"label":"US 29th","note":"Placed by the map maker at the general position the source describes; the source gives no coordinates.","style":{"size":1,"labelPos":"auto"},"sym":{"tpl":"S*G*UCI--------","affil":"F","status":"P","ech":"I","hq":"-","unique":"29","key":"Allied infantry division"},"cites":[{"src":"s1","loc":"","quote":"","note":""}]},{"id":"f8","kind":"symbol","layer":"l1","coords":[[-0.8,49.33]],"label":"US 1st","note":"Placed by the map maker at the general position the source describes; the source gives no coordinates.","style":{"size":1,"labelPos":"auto"},"sym":{"tpl":"S*G*UCI--------","affil":"F","status":"P","ech":"I","hq":"-","unique":"1","key":"Allied infantry division"},"cites":[{"src":"s1","loc":"","quote":"","note":""}]},{"id":"f9","kind":"symbol","layer":"l1","coords":[[-0.6,49.3]],"label":"British 50th","note":"Placed by the map maker at the general position the source describes; the source gives no coordinates.","style":{"size":1,"labelPos":"auto"},"sym":{"tpl":"S*G*UCI--------","affil":"F","status":"P","ech":"I","hq":"-","unique":"50","key":"Allied infantry division"},"cites":[{"src":"s1","loc":"","quote":"","note":""}]},{"id":"f10","kind":"symbol","layer":"l1","coords":[[-0.445,49.29]],"label":"3rd Canadian","note":"Placed by the map maker at the general position the source describes; the source gives no coordinates.","style":{"size":1,"labelPos":"auto"},"sym":{"tpl":"S*G*UCI--------","affil":"F","status":"P","ech":"I","hq":"-","unique":"3","key":"Allied infantry division"},"cites":[{"src":"s1","loc":"","quote":"","note":""},{"src":"s3","loc":"p. 72","quote":"","note":""}]},{"id":"f11","kind":"symbol","layer":"l1","coords":[[-0.295,49.25]],"label":"British 3rd","note":"Placed by the map maker at the general position the source describes; the source gives no coordinates.","style":{"size":1,"labelPos":"auto"},"sym":{"tpl":"S*G*UCI--------","affil":"F","status":"P","ech":"I","hq":"-","unique":"3","key":"Allied infantry division"},"cites":[{"src":"s1","loc":"","quote":"","note":""}]},{"id":"f12","kind":"symbol","layer":"l2","coords":[[-1.25,49.345]],"label":"US 101st","note":"Placed by the map maker at the general position the source describes; the source gives no coordinates.","style":{"size":1,"labelPos":"auto"},"sym":{"tpl":"S*G*UCIA-------","affil":"F","status":"P","ech":"I","hq":"-","unique":"101","key":"Allied airborne division"},"cites":[{"src":"s2","loc":"p. 7","quote":"the 101st Airborne Division would land southeast of Ste. Mère-Eglise","note":""}]},{"id":"f13","kind":"symbol","layer":"l2","coords":[[-1.41,49.405]],"label":"US 82nd","note":"Placed by the map maker at the general position the source describes; the source gives no coordinates.","style":{"size":1,"labelPos":"auto"},"sym":{"tpl":"S*G*UCIA-------","affil":"F","status":"P","ech":"I","hq":"-","unique":"82","key":"Allied airborne division"},"cites":[{"src":"s2","loc":"p. 10","quote":"establishing deep bridgeheads over the Merderet River","note":""}]},{"id":"f14","kind":"symbol","layer":"l2","coords":[[-0.15,49.2]],"label":"British 6th","note":"Placed by the map maker at the general position the source describes; the source gives no coordinates.","style":{"size":1,"labelPos":"auto"},"sym":{"tpl":"S*G*UCIA-------","affil":"F","status":"P","ech":"I","hq":"-","unique":"6","key":"Allied airborne division"},"cites":[{"src":"s3","loc":"p. 72","quote":"dropping east of the Orne to seize crossings over the Caen Canal","note":""}]},{"id":"f15","kind":"symbol","layer":"l3","coords":[[-1.4,49.53]],"label":"709th","note":"Placed by the map maker at the general position the source describes; the source gives no coordinates.","style":{"size":1,"labelPos":"auto"},"sym":{"tpl":"S*G*UCI--------","affil":"H","status":"P","ech":"I","hq":"-","unique":"709","key":"German infantry division"},"cites":[{"src":"s2","loc":"p. 6","quote":"","note":""}]},{"id":"f16","kind":"symbol","layer":"l3","coords":[[-0.84,49.245]],"label":"352nd","note":"Placed by the map maker at the general position the source describes; the source gives no coordinates.","style":{"size":1,"labelPos":"auto"},"sym":{"tpl":"S*G*UCI--------","affil":"H","status":"P","ech":"I","hq":"-","unique":"352","key":"German infantry division"},"cites":[{"src":"s1","loc":"","quote":"","note":""},{"src":"s2","loc":"p. 6","quote":"","note":""}]},{"id":"f17","kind":"symbol","layer":"l3","coords":[[-0.47,49.215]],"label":"716th","note":"Placed by the map maker at the general position the source describes; the source gives no coordinates.","style":{"size":1,"labelPos":"auto"},"sym":{"tpl":"S*G*UCI--------","affil":"H","status":"P","ech":"I","hq":"-","unique":"716","key":"German infantry division"},"cites":[{"src":"s2","loc":"p. 6","quote":"The 716th and 352d Divisions, disposed east and south of the Cotentin","note":""}]}],"sources":[{"id":"s1","fields":{"type":"web","titleStyle":"quotes","authors":"Imperial War Museums","shortName":"Imperial War Museums","shortTitle":"D-Day Beaches","title":"What you Need to Know about the D-Day Beaches","location":"Imperial War Museums Website","descType":"Web Page","accessed":"23 October 2026","url":"https://www.iwm.org.uk/history/what-you-need-to-know-about-the-d-day-beaches","access":[],"quals":[]}},{"id":"s2","fields":{"type":"report","titleStyle":"italics","authors":"Historical Division, War Department","shortName":"Historical Division","shortTitle":"Utah Beach to Cherbourg","title":"Utah Beach to Cherbourg (6 June–27 June 1944)","location":"American Forces in Action Series","descType":"Official History","descDetails":"HyperWar online edition","date":"1947","url":"https://www.ibiblio.org/hyperwar/USA/USA-A-Utah/index.html","access":[],"quals":[]}},{"id":"s3","fields":{"type":"book","titleStyle":"italics","authors":"C.P. Stacey","shortTitle":"Victory Campaign","title":"The Victory Campaign: The Operations in North-West Europe, 1944–1945","descType":"Official History","descDetails":"Official History of the Canadian Army in the Second World War, Vol. III; HyperWar online edition","publisher":"Queen's Printer","date":"1966","url":"https://ibiblio.org/hyperwar/UN/Canada/CA/Victory/Victory-4.html","access":[],"quals":[]}}],"views":[{"id":"v1","name":"The whole assault","center":[-0.79,49.385],"zoom":8.5,"bearing":0,"pitch":0,"hold":2.5,"fly":4},{"id":"v2","name":"Utah and the American airborne drops","center":[-1.27,49.41],"zoom":9.3,"bearing":0,"pitch":30,"hold":3,"fly":4},{"id":"v3","name":"Omaha","center":[-0.88,49.34],"zoom":9.9,"bearing":0,"pitch":30,"hold":3,"fly":3.5},{"id":"v4","name":"The British and Canadian beaches","center":[-0.4,49.3],"zoom":9.5,"bearing":-10,"pitch":20,"hold":3,"fly":4},{"id":"v5","name":"Back to the whole assault","center":[-0.79,49.385],"zoom":8.5,"bearing":0,"pitch":0,"hold":2,"fly":4}],"gaps":["Positions are the map maker's placement from the sources' descriptions, not plotted coordinates."]}</script>
 <script id="app">(function () {
   'use strict';
   var O = OSINT, T = OSINT_TABLES, TYPES = T.TYPES, TEXT_KEYS = T.TEXT_KEYS, M = MAPC, ML = window.maplibregl, MS = window.ms, MG = window.mgrs;
@@ -5436,8 +5904,7 @@ var MAPC = (function () {
   O.setLibrary(LIB_INDEX);
   var ZC = { G: 'var(--z-green)', Y: 'var(--z-yellow)', O: 'var(--z-orange)', R: 'var(--z-red)', X: 'var(--z-gray)' };
   var ZN = { G: 'Green', Y: 'Yellow', O: 'Orange', R: 'Red', X: 'Gray' };
-  var FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
-  var SERIF = '"Iowan Old Style", Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif';
+  var FONT = OMR.FONT, SERIF = OMR.SERIF;
   var $ = function (id) { return document.getElementById(id); };
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -5565,283 +6032,54 @@ var MAPC = (function () {
     }
   }
 
-  // ---------- images the map draws (markers, symbols, labels, arrowheads, hatching) ----------
-  var SPECS = {}, IMG = {}, SYM_SVG = {};
-  function canvas(w, h) { var c = document.createElement('canvas'); c.width = Math.max(1, Math.ceil(w)); c.height = Math.max(1, Math.ceil(h)); c.getContext('2d', { willReadFrequently: true }); return c; }
-  function markerPath(ctx, shape, cx, cy, r) {
-    ctx.beginPath();
-    var i, a;
-    if (shape === 'square') { ctx.rect(cx - r * 0.86, cy - r * 0.86, r * 1.72, r * 1.72); }
-    else if (shape === 'triangle') { ctx.moveTo(cx, cy - r * 1.08); ctx.lineTo(cx + r * 1.02, cy + r * 0.72); ctx.lineTo(cx - r * 1.02, cy + r * 0.72); ctx.closePath(); }
-    else if (shape === 'diamond') { ctx.moveTo(cx, cy - r * 1.12); ctx.lineTo(cx + r * 1.0, cy); ctx.lineTo(cx, cy + r * 1.12); ctx.lineTo(cx - r * 1.0, cy); ctx.closePath(); }
-    else if (shape === 'star') { for (i = 0; i < 10; i++) { a = -Math.PI / 2 + (i * Math.PI) / 5; var rr = i % 2 ? r * 0.48 : r * 1.12; ctx[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } ctx.closePath(); }
-    else if (shape === 'burst') { var n = 12; for (i = 0; i < n * 2; i++) { a = -Math.PI / 2 + (i * Math.PI) / n; var q = i % 2 ? r * 0.58 : r * (i % 4 ? 1.05 : 1.25); ctx[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * q, cy + Math.sin(a) * q); } ctx.closePath(); }
-    else if (shape === 'cross') { var t = r * 0.36; ctx.moveTo(cx - r, cy - r + t); ctx.lineTo(cx - r + t, cy - r); ctx.lineTo(cx, cy - t); ctx.lineTo(cx + r - t, cy - r); ctx.lineTo(cx + r, cy - r + t); ctx.lineTo(cx + t, cy); ctx.lineTo(cx + r, cy + r - t); ctx.lineTo(cx + r - t, cy + r); ctx.lineTo(cx, cy + t); ctx.lineTo(cx - r + t, cy + r); ctx.lineTo(cx - r, cy + r - t); ctx.lineTo(cx - t, cy); ctx.closePath(); }
-    else if (shape === 'pin') { ctx.moveTo(cx, cy); ctx.bezierCurveTo(cx - r * 0.35, cy - r * 0.9, cx - r * 1.05, cy - r * 1.35, cx - r * 1.05, cy - r * 2.05); ctx.arc(cx, cy - r * 2.05, r * 1.05, Math.PI, 0); ctx.bezierCurveTo(cx + r * 1.05, cy - r * 1.35, cx + r * 0.35, cy - r * 0.9, cx, cy); ctx.closePath(); }
-    else { ctx.arc(cx, cy, shape === 'dot' ? r * 0.55 : r, 0, Math.PI * 2); }
-  }
-  function strokeFor(hex) { var c = M.parseColor(hex) || [0, 0, 0, 1]; return M.lum(c) > 0.82 ? '#1B1F24' : '#FFFFFF'; }
-  function drawMarker(ctx, shape, color, cx, cy, r, lw) {
-    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = r * 0.35; ctx.shadowOffsetY = r * 0.08;
-    markerPath(ctx, shape, cx, cy, r); ctx.fillStyle = color; ctx.fill(); ctx.restore();
-    ctx.save(); markerPath(ctx, shape, cx, cy, r); ctx.lineJoin = 'round'; ctx.lineWidth = lw; ctx.strokeStyle = strokeFor(color); ctx.stroke();
-    if (shape === 'pin') { ctx.beginPath(); ctx.arc(cx, cy - r * 2.05, r * 0.42, 0, Math.PI * 2); ctx.fillStyle = strokeFor(color); ctx.fill(); }
-    ctx.restore();
-  }
-  function milSymbol(spec, dark) {
-    var y = spec.sym || {}, o = { size: 26 * (spec.size || 1), infoFields: true, outlineWidth: 3, outlineColor: dark ? 'rgba(6,10,14,0.9)' : 'rgba(255,255,255,0.95)', infoColor: dark ? '#FFFFFF' : '#0B1218' };
-    if (y.mono) { o.monoColor = dark ? '#FFFFFF' : '#0B1218'; o.fill = false; }
-    if (y.unique) o.uniqueDesignation = y.unique; if (y.higher) o.higherFormation = y.higher; if (y.info) o.additionalInformation = y.info; if (y.type) o.type = y.type;
-    if (y.reinforced) o.reinforcedReduced = y.reinforced; if (y.quantity) o.quantity = y.quantity; if (y.staff) o.staffComments = y.staff;
-    if (y.direction !== '' && y.direction != null && isFinite(+y.direction)) o.direction = String(+y.direction);
-    return new MS.Symbol(spec.sidc, o);
-  }
-  function labelLines(text) { return String(text || '').split(/\n/).map(function (s) { return s.trim(); }).filter(function (s, i, a) { return s || a.length === 1; }); }
-  function genImage(spec, ratio, dark) {
-    var R = ratio, c, ctx, w, h;
-    if (spec.t === 'marker') {
-      var r = 8.5 * spec.size, pad = 4 + r * 0.45, pin = spec.shape === 'pin';
-      w = (r * 1.3 + pad) * 2; h = pin ? (r * 3.2 + pad) * 2 : w;
-      c = canvas(w * R, h * R); ctx = c.getContext('2d'); ctx.scale(R, R);
-      drawMarker(ctx, spec.shape, spec.color, w / 2, h / 2, r, Math.max(1.4, 1.8 * Math.sqrt(spec.size)));
-    } else if (spec.t === 'mil') {
-      var sym = milSymbol(spec, dark), sz = sym.getSize(), an = sym.getAnchor(), sc = sym.asCanvas(R), oa = sym.getOctagonAnchor ? sym.getOctagonAnchor() : an;
-      w = sz.width + 2; h = sz.height + 2;
-      c = canvas(w * R, h * R); ctx = c.getContext('2d'); ctx.drawImage(sc, R, R);
-      var ex = { ax: an.x + 1, ay: an.y + 1 };
-      void oa; ex.fx = ex.ax; ex.fr = w - ex.ax; ex.ft = ex.ay; ex.fb = h - ex.ay;
-      return { canvas: c, w: w, h: h, ratio: R, ax: ex.ax, ay: ex.ay, fx: ex.fx, fr: ex.fr, ft: ex.ft, fb: ex.fb };
-    } else if (spec.t === 'label') {
-      var region = spec.style === 'region', fs = (spec.bold ? 15 : region ? 12.5 : 13) * spec.size, lines = labelLines(spec.text), wt = spec.bold ? 700 : 600, font = wt + ' ' + fs + 'px ' + (region ? SERIF : FONT), sfont = '700 ' + (fs * (spec.text ? 0.68 : 0.85)) + 'px ' + FONT;
-      if (region) lines = lines.map(function (l) { return l.toUpperCase().split('').join('\u2009'); });
-      var tmp = canvas(4, 4).getContext('2d'); tmp.font = font;
-      var widths = lines.map(function (l) { return tmp.measureText(l).width; }); tmp.font = sfont;
-      var supW = spec.sup ? tmp.measureText(spec.sup).width + fs * 0.15 : 0, lh = fs * 1.18, box = spec.style === 'box', px = box ? fs * 0.45 : 3.5, py = box ? fs * 0.28 : 3;
-      if (!lines.length || (lines.length === 1 && !lines[0])) { lines = ['']; widths = [0]; }
-      w = Math.max.apply(null, widths) + supW + px * 2; h = lh * lines.length + py * 2;
-      c = canvas(w * R, h * R); ctx = c.getContext('2d'); ctx.scale(R, R);
-      var light = !dark, txt = spec.color || (light ? '#10171D' : '#FFFFFF');
-      if (region && spec.color) { var rc = M.parseColor(spec.color) || [90, 90, 90, 1], tg = dark ? 255 : 22, mix = dark ? 0.55 : 0.62; txt = 'rgb(' + rc.slice(0, 3).map(function (v) { return Math.round(v + (tg - v) * mix); }).join(',') + ')'; light = !dark; }
-      else if (spec.color) { var cc = M.parseColor(spec.color); light = M.lum(cc) < 0.45; }
-      var halo = light ? 'rgba(255,255,255,0.96)' : 'rgba(6,10,14,0.92)';
-      if (box) { ctx.fillStyle = light ? 'rgba(255,255,255,0.94)' : 'rgba(8,14,20,0.88)'; roundRect(ctx, 0.5, 0.5, w - 1, h - 1, fs * 0.22); ctx.fill(); if (!spec.color) txt = light ? '#10171D' : '#FFFFFF'; }
-      ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
-      lines.forEach(function (l, i) {
-        var y = py + lh * (i + 0.5), x = px + (Math.max.apply(null, widths) - widths[i]) / 2;
-        ctx.font = font;
-        if (spec.style === 'halo' || region) { ctx.lineWidth = Math.max(2.6, fs * (region ? 0.22 : 0.26)); ctx.strokeStyle = region ? halo.replace(/[\d.]+\)$/, '0.75)') : halo; ctx.strokeText(l, x, y); }
-        ctx.fillStyle = txt; ctx.fillText(l, x, y);
-        if (i === 0 && spec.sup) {
-          var sx = px + Math.max.apply(null, widths) + fs * 0.12, sy = y - fs * 0.32; ctx.font = sfont;
-          if (spec.style === 'halo') { ctx.lineWidth = Math.max(2.2, fs * 0.2); ctx.strokeStyle = halo; ctx.strokeText(spec.sup, sx, sy); }
-          ctx.fillStyle = light ? '#0F4761' : '#F2C14E'; ctx.fillText(spec.sup, sx, sy);
-        }
-      });
-    } else if (spec.t === 'head') {
-      w = 18; h = 17; c = canvas(w * R, h * R); ctx = c.getContext('2d'); ctx.scale(R, R);
-      ctx.beginPath(); ctx.moveTo(w / 2, 1); ctx.lineTo(w - 1.5, h - 1.5); ctx.lineTo(w / 2, h - 5); ctx.lineTo(1.5, h - 1.5); ctx.closePath();
-      ctx.fillStyle = spec.color; ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = dark ? 'rgba(6,10,14,.8)' : 'rgba(255,255,255,.9)'; ctx.lineJoin = 'round'; ctx.stroke();
-    } else if (spec.t === 'hatch') {
-      w = 12; h = 12; c = canvas(w * R, h * R); ctx = c.getContext('2d'); ctx.scale(R, R);
-      ctx.strokeStyle = spec.color; ctx.globalAlpha = 0.75; ctx.lineWidth = 1.6; ctx.lineCap = 'square';
-      ctx.beginPath(); ctx.moveTo(-3, 3); ctx.lineTo(3, -3); ctx.moveTo(-3, 15); ctx.lineTo(15, -3); ctx.moveTo(9, 15); ctx.lineTo(15, 9); ctx.stroke();
-    } else return null;
-    return { canvas: c, w: w, h: h, ratio: R };
-  }
-  function roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r); ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h); ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r); ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath(); }
-  function getImage(key, ratio, dark) {
-    var spec = SPECS[key]; if (!spec) return null;
-    var ck = key + '@' + ratio + (dark ? 'd' : 'l');
-    if (!IMG[ck]) { try { IMG[ck] = genImage(spec, ratio, dark); } catch (e) { IMG[ck] = null; } }
-    return IMG[ck];
-  }
+  // ---------- the map engine (map-render.js) ----------
+  var R = OMR, SPECS = R.SPECS, canvas = R.canvas, markerPath = R.markerPath, drawMarker = R.drawMarker, milSymbol = R.milSymbol, labelLines = R.labelLines, genImage = R.genImage, roundRect = R.roundRect,
+    getImage = R.getImage, imageData = R.imageData, symThumb = R.symThumb, BASEMAPS = R.BASEMAPS, IMAGERY = R.IMAGERY, IMG_SRC = R.IMG_SRC, baseDef = R.baseDef, world = R.world, outlineStyle = R.outlineStyle;
+  var baseStyle = null, baseAttr = '';
   function measureKey(key) { var im = getImage(key, mapRatio(), isDark()); return im ? { w: im.w, h: im.h, ax: im.ax, ay: im.ay, fx: im.fx, fr: im.fr, ft: im.ft, fb: im.fb } : null; }
-  function imageData(im) { return im.canvas.getContext('2d').getImageData(0, 0, im.canvas.width, im.canvas.height); }
-  function symThumb(sidc, sym) {
-    var k = sidc + JSON.stringify(sym || {}); if (SYM_SVG[k]) return SYM_SVG[k];
-    try { var s = milSymbol({ sidc: sidc, sym: sym || {}, size: 1 }, false); SYM_SVG[k] = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s.asSVG()); } catch (e) { SYM_SVG[k] = ''; }
-    return SYM_SVG[k];
-  }
-
-  // ---------- basemaps ----------
-  var OFM = 'OpenFreeMap · © OpenMapTiles · Data © OpenStreetMap contributors';
-  var BASEMAPS = [
-    ['liberty', 'Liberty', 'Full detail: roads, places and land cover.', 'https://tiles.openfreemap.org/styles/liberty', OFM],
-    ['positron', 'Positron', 'Light and quiet. Made for data on top.', 'https://tiles.openfreemap.org/styles/positron', OFM],
-    ['bright', 'Bright', 'A classic, colorful road map.', 'https://tiles.openfreemap.org/styles/bright', OFM],
-    ['dark', 'Dark', 'Dark gray and quiet.', 'https://tiles.openfreemap.org/styles/dark', OFM],
-    ['fiord', 'Fiord', 'Deep blue.', 'https://tiles.openfreemap.org/styles/fiord', OFM],
-    ['outline', 'Plain outline', 'Coastlines and borders only. Works offline.', '', 'Natural Earth (public domain)'],
-    ['custom', 'Your own style', 'Any MapLibre style URL, such as a MapTiler style with your key or your own tiles.', '', '']];
-  var IMAGERY = [['', 'None'], ['s2-2016', 'Sentinel-2 cloudless 2016 (CC BY 4.0, fine for commercial use)'], ['s2-2024', 'Sentinel-2 cloudless 2024 (CC BY-NC-SA 4.0, non-commercial only)']];
-  var IMG_SRC = {
-    's2-2016': { url: 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg', attr: 'Sentinel-2 cloudless 2016 by EOX IT Services GmbH (contains modified Copernicus Sentinel data 2016), CC BY 4.0' },
-    's2-2024': { url: 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/g/{z}/{y}/{x}.jpg', attr: 'Sentinel-2 cloudless 2024 by EOX IT Services GmbH (contains modified Copernicus Sentinel data 2024), CC BY-NC-SA 4.0' } };
-  var RELIEF_URL = 'https://tiles.openfreemap.org/natural_earth/ne2sr/{z}/{x}/{y}.png', DEM_URL = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
-  var STYLE_CACHE = {}, baseStyle = null, baseAttr = '';
-  function baseDef(id) { return BASEMAPS.filter(function (b) { return b[0] === id; })[0] || BASEMAPS[0]; }
-  function fetchStyle(url) {
-    if (!STYLE_CACHE[url]) STYLE_CACHE[url] = fetch(url, { credentials: 'omit' }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function (s) { if (!s || !s.layers) throw new Error('not a style'); return s; });
-    STYLE_CACHE[url].catch(function () { delete STYLE_CACHE[url]; });
-    return STYLE_CACHE[url];
-  }
-  var OUTLINE = null;
-  var WORLD = null;
-  // Land rings and border lines from the built-in Natural Earth outlines, as [longitude, latitude] lists.
-  function world() {
-    if (WORLD) return WORLD;
-    function rings(d) {
-      var out = [];
-      d.split('M').forEach(function (seg) {
-        if (!seg.trim()) return; seg = seg.replace(/Z\s*$/, '');
-        var pts = seg.split('L').map(function (p) { var n = p.trim().split(/\s+/); return [+n[0], -n[1]]; }).filter(function (p) { return isFinite(p[0]) && isFinite(p[1]); });
-        if (pts.length > 1) out.push(pts);
-      });
-      return out;
-    }
-    WORLD = { land: rings(WORLD_GEO.land).filter(function (r) { return r.length > 2; }).map(function (r) { return r.concat([r[0]]); }), borders: WORLD_GEO.borders ? rings(WORLD_GEO.borders) : [] };
-    return WORLD;
-  }
-  function outlineStyle() {
-    if (!OUTLINE) {
-      var land = world().land.map(function (r) { return { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [r] } }; }), borders = world().borders.map(function (r) { return { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: r } }; });
-      OUTLINE = { version: 8, name: 'Plain outline', sources: { 'om-land': { type: 'geojson', data: { type: 'FeatureCollection', features: land } }, 'om-borders': { type: 'geojson', data: { type: 'FeatureCollection', features: borders } } },
-        layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#B7CCD8' } }, { id: 'om-land', type: 'fill', source: 'om-land', paint: { 'fill-color': '#F1EEE6', 'fill-outline-color': '#9AA6AE' } },
-          { id: 'om-coast', type: 'line', source: 'om-land', paint: { 'line-color': '#8E9DA7', 'line-width': 0.7 } }, { id: 'om-borders', type: 'line', source: 'om-borders', paint: { 'line-color': '#8A8F96', 'line-width': 0.9, 'line-dasharray': [3, 1.5] } }] };
-    }
-    return JSON.parse(JSON.stringify(OUTLINE));
-  }
-  function isDark() {
-    var b = P.base;
-    if (b.imagery && b.imageryOpacity > 0.4) return true;
-    if (b.tone === 'dark' || b.tone === 'night') return true;
-    if (b.tone === 'original' && (b.style === 'dark' || b.style === 'fiord')) return true;
-    return false;
-  }
-  // Basemap plus overlays (relief, imagery, hillshade), restyled for tone, label density and borders.
-  function composeBase(raw, id) {
-    var s = JSON.parse(JSON.stringify(raw)), b = P.base, L = s.layers, i;
-    s.sources = s.sources || {};
-    var after = 0; for (i = 0; i < L.length; i++) { if (L[i].type === 'background') after = i + 1; }
-    if (id === 'outline') after = 2;
-    if (b.relief) { s.sources['om-relief'] = { type: 'raster', tiles: [RELIEF_URL], tileSize: 256, maxzoom: 6, attribution: '' }; L.splice(after, 0, { id: 'om-relief', type: 'raster', source: 'om-relief', paint: { 'raster-opacity': b.reliefOpacity, 'raster-fade-duration': 0 } }); after++; }
-    var im = b.imagery && IMG_SRC[b.imagery];
-    if (im) {
-      s.sources['om-img'] = { type: 'raster', tiles: [im.url], tileSize: 256, maxzoom: 14 };
-      L.splice(after, 0, { id: 'om-img', type: 'raster', source: 'om-img', paint: { 'raster-opacity': b.imageryOpacity, 'raster-fade-duration': 0 } }); after++;
-      if (b.imageryOpacity >= 0.5) L.forEach(function (l) { if (l.id !== 'om-img' && (l.type === 'fill' || l.type === 'fill-extrusion' || (l.type === 'background' && l.id !== 'om-img'))) { l.layout = l.layout || {}; l.layout.visibility = 'none'; } if (l.type === 'raster' && l.id !== 'om-img' && l.id !== 'om-relief') { l.layout = l.layout || {}; l.layout.visibility = 'none'; } });
-    }
-    if (b.hillshade) {
-      s.sources['om-dem'] = { type: 'raster-dem', tiles: [DEM_URL], tileSize: 256, maxzoom: 15, encoding: 'terrarium' };
-      var at = L.length; for (i = after; i < L.length; i++) { if (L[i].type === 'line' || L[i].type === 'symbol' || L[i].type === 'fill-extrusion') { at = i; break; } }
-      L.splice(at, 0, { id: 'om-hillshade', type: 'hillshade', source: 'om-dem', paint: { 'hillshade-exaggeration': b.hillshadeOpacity, 'hillshade-shadow-color': '#1E2125', 'hillshade-highlight-color': '#FFFFFF', 'hillshade-accent-color': '#2C3034' } });
-    }
-    var out = M.restyle(s, { tone: b.tone, labels: b.labels, borders: b.borders, modern: b.modern });
-    if (id === 'outline' && b.tone !== 'original') { /* restyle covers outline colors */ }
-    return out;
-  }
-  function attribution() {
-    var b = P.base, d = baseDef(b.style), parts = [];
-    var a = ui.fallback ? baseDef('outline')[4] : b.style === 'custom' ? (b.customAttr || 'Basemap: credit the provider in Basemap → Attribution') : d[4];
-    if (a) parts.push(a);
-    if (b.relief) parts.push('Shaded relief: Natural Earth');
-    if (b.imagery && IMG_SRC[b.imagery]) parts.push(IMG_SRC[b.imagery].attr);
-    if (b.hillshade) parts.push('Elevation: Terrain Tiles (Mapzen, AWS Open Data; SRTM, GMTED2010, ETOPO1 and others)');
-    var hb = {}; P.sources.forEach(function (s) { if (/aourednik\/historical-basemaps/.test(s.fields.url || '')) hb[s.id] = 1; });
-    if (M.shown(P).some(function (f) { return f.cites.some(function (c) { return hb[c.src]; }); })) parts.push('Historical borders: Historical Basemaps by A. Ourednik (GPL-3.0)');
-    return parts.join(' · ');
-  }
-  // Loads the chosen basemap; resolves with a full style (basemap + data layers).
-  function buildStyle() {
-    var b = P.base, d = baseDef(b.style), url = b.style === 'custom' ? b.customUrl : d[3];
-    var p = b.style === 'outline' ? Promise.resolve(outlineStyle()) : url ? fetchStyle(url) : Promise.reject(new Error('Type a style URL under Basemap.'));
-    return p.then(function (raw) { ui.baseErr = ''; ui.fallback = false; return composeBase(raw, b.style); }, function (err) {
-      ui.fallback = true;
-      ui.baseErr = (b.style === 'custom' ? 'That style could not be loaded (' + err.message + '). ' : 'The basemap could not be loaded, which usually means no internet connection. ') + 'Showing the plain outline until it can.';
-      return composeBase(outlineStyle(), 'outline');
-    });
-  }
+  function isDark() { return R.isDark(P); }
+  function attribution() { return R.attribution(P, ui.fallback); }
+  function buildStyle() { return R.buildStyle(P).then(function (r) { ui.fallback = r.fallback; ui.baseErr = r.error; return r.style; }); }
 
   // ---------- the map ----------
   var map = null, frameW = 1000, frameH = 562, mapReady = false, styleSeq = 0;
   function mapRatio() { return Math.min(4, Math.max(2, Math.ceil(window.devicePixelRatio || 1))); }
   function U() { return frameW / M.REF_W; }
-  function zoomFor(refZoom, w) { return refZoom + Math.log2(w / M.REF_W); }
-  function dataLayers(u, L, forExport) {
-    var sym = L.symbolScale, txt = L.textScale, g = function (v) { return ['==', ['get', 'g'], v]; };
-    var w = ['*', u, ['get', 'w']], round = { 'line-cap': 'round', 'line-join': 'round' };
-    var layers = [
-      { id: 'om-frame', type: 'fill', source: 'om', filter: g('frame'), paint: { 'fill-color': '#000000', 'fill-opacity': 0 } },
-      { id: 'om-fill', type: 'fill', source: 'om', filter: g('fill'), paint: { 'fill-color': ['get', 'c'], 'fill-opacity': ['get', 'o'] } },
-      { id: 'om-hatch', type: 'fill', source: 'om', filter: g('hatch'), paint: { 'fill-pattern': ['get', 'pat'] } },
-      { id: 'om-band', type: 'line', source: 'om', filter: g('band'), layout: { 'line-join': 'round' }, paint: { 'line-color': ['get', 'c'], 'line-width': w, 'line-offset': ['*', u, ['get', 'off']], 'line-opacity': 0.5 } },
-      { id: 'om-soft', type: 'line', source: 'om', filter: g('soft'), layout: round, paint: { 'line-color': ['get', 'c'], 'line-width': w, 'line-blur': ['*', 0.9, w], 'line-opacity': 0.9 } },
-      { id: 'om-sel-line', type: 'line', source: 'om', filter: ['all', ['==', ['get', 'sel'], 1], ['any', g('outline'), g('line'), g('band'), g('soft'), g('frame')]], layout: round, paint: { 'line-color': '#F2A900', 'line-width': ['+', w, 8 * u], 'line-opacity': 0.5 } },
-      { id: 'om-outline', type: 'line', source: 'om', filter: ['all', g('outline'), ['==', ['get', 'd'], 'solid']], layout: round, paint: { 'line-color': ['get', 'c'], 'line-width': w } },
-      { id: 'om-outline-dash', type: 'line', source: 'om', filter: ['all', g('outline'), ['==', ['get', 'd'], 'dash']], layout: { 'line-join': 'round' }, paint: { 'line-color': ['get', 'c'], 'line-width': w, 'line-dasharray': [3, 2] } },
-      { id: 'om-outline-dot', type: 'line', source: 'om', filter: ['all', g('outline'), ['==', ['get', 'd'], 'dot']], layout: round, paint: { 'line-color': ['get', 'c'], 'line-width': w, 'line-dasharray': [0.1, 2] } },
-      { id: 'om-casing', type: 'line', source: 'om', filter: g('line'), layout: round, paint: { 'line-color': ['get', 'cas'], 'line-width': ['+', w, 2.6 * u], 'line-opacity': 0.75 } },
-      { id: 'om-line', type: 'line', source: 'om', filter: ['all', g('line'), ['==', ['get', 'd'], 'solid']], layout: round, paint: { 'line-color': ['get', 'c'], 'line-width': w } },
-      { id: 'om-line-dash', type: 'line', source: 'om', filter: ['all', g('line'), ['==', ['get', 'd'], 'dash']], layout: { 'line-join': 'round' }, paint: { 'line-color': ['get', 'c'], 'line-width': w, 'line-dasharray': [3, 2] } },
-      { id: 'om-line-dot', type: 'line', source: 'om', filter: ['all', g('line'), ['==', ['get', 'd'], 'dot']], layout: round, paint: { 'line-color': ['get', 'c'], 'line-width': w, 'line-dasharray': [0.1, 2] } },
-      { id: 'om-head', type: 'symbol', source: 'om', filter: g('head'), layout: { 'icon-image': ['get', 'img'], 'icon-size': ['*', u, ['get', 'sz']], 'icon-rotate': ['get', 'rot'], 'icon-rotation-alignment': 'map', 'icon-anchor': 'top', 'icon-allow-overlap': true, 'icon-ignore-placement': true } },
-      { id: 'om-sel-pt', type: 'circle', source: 'om', filter: ['all', ['==', ['get', 'sel'], 1], g('point')], paint: { 'circle-radius': 21 * u * sym, 'circle-color': 'rgba(242,169,0,0.16)', 'circle-stroke-color': '#F2A900', 'circle-stroke-width': 2 } },
-      { id: 'om-point', type: 'symbol', source: 'om', filter: g('point'), layout: { 'icon-image': ['get', 'img'], 'icon-size': u * sym, 'icon-offset': ['coalesce', ['get', 'po'], ['literal', [0, 0]]], 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'symbol-z-order': 'source' } },
-      { id: 'om-label', type: 'symbol', source: 'om', filter: g('label'), layout: { 'icon-image': ['get', 'img'], 'icon-size': u * txt, 'icon-anchor': ['get', 'an'], 'icon-offset': ['get', 'off'], 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'symbol-z-order': 'source' } }];
-    if (!forExport) layers.push(
-      { id: 'om-draft-fill', type: 'fill', source: 'om-edit', filter: ['==', ['get', 'r'], 'fill'], paint: { 'fill-color': '#F2A900', 'fill-opacity': 0.15 } },
-      { id: 'om-draft-line', type: 'line', source: 'om-edit', filter: ['==', ['get', 'r'], 'line'], layout: round, paint: { 'line-color': '#F2A900', 'line-width': 2.2, 'line-dasharray': [2, 1.5] } },
-      { id: 'om-vtx-mid', type: 'circle', source: 'om-edit', filter: ['==', ['get', 'r'], 'm'], paint: { 'circle-radius': 4, 'circle-color': '#FFFFFF', 'circle-opacity': 0.75, 'circle-stroke-color': '#F2A900', 'circle-stroke-width': 1.5 } },
-      { id: 'om-vtx', type: 'circle', source: 'om-edit', filter: ['any', ['==', ['get', 'r'], 'v'], ['==', ['get', 'r'], 'c'], ['==', ['get', 'r'], 'rad']], paint: { 'circle-radius': 6, 'circle-color': '#F2A900', 'circle-stroke-color': '#0B1218', 'circle-stroke-width': 1.8 } });
-    return layers;
-  }
-  var EMPTY = { type: 'FeatureCollection', features: [] };
-  function withData(base, fc, u, forExport) {
-    var s = JSON.parse(JSON.stringify(base));
-    s.sources.om = { type: 'geojson', data: fc || EMPTY, tolerance: 0.2 };
-    if (!forExport) s.sources['om-edit'] = { type: 'geojson', data: EMPTY };
-    s.layers = s.layers.concat(dataLayers(u, P.layout, forExport));
-    return s;
-  }
+  var zoomFor = R.zoomFor;
+  function dataLayers(u, L, forExport) { return R.dataLayers(u, L, forExport); }
+  var EMPTY = R.EMPTY;
+  function withData(base, fc, u, forExport) { return R.withData(base, fc, u, P.layout, forExport); }
   function renderOpts(sel, forExport) { return { markers: P.layout.markers, theme: isDark() ? 'dark' : 'light', selected: forExport ? '' : sel, measure: measureKey, symScale: P.layout.symbolScale, txtScale: P.layout.textScale }; }
   // at: a map time to draw instead of the project's own (used by video export).
   function computeFC(forExport, at) { return computeRender(forExport, at).fc; }
+  // Metres per screen pixel at a map's center, so arrowheads can be fitted to their lines.
+  function mppOf(m) { if (!m) return 0; var c = m.getCenter(); return M.metresPerPixel(c.lat, m.getZoom()); }
+  // Picks positions for labels left on Automatic, so they keep clear of symbols, panels, the frame's edge and each other.
+  function placeAll(m, r) {
+    if (!m || !r) return {};
+    var res = R.placeAuto(m, r, P.layout, U(), mapRatio(), isDark(), lastPanels || [], frameW, frameH);
+    placeAll.last = res.items; return res.place;
+  }
+  var lastR = null, lastPanels = [];
   // The features to draw (fc) and the scanned maps under them (images).
-  function computeRender(forExport, at) {
+  // m: the map whose camera to fit arrowheads to (the main map unless an export says otherwise).
+  function computeRender(forExport, at, m, place) {
     var o = renderOpts(ui.sel, forExport); if (at !== undefined) o.at = at;
-    var r = M.render(P, o), fresh = false;
-    Object.keys(r.specs).forEach(function (k) { if (!SPECS[k]) { SPECS[k] = r.specs[k]; fresh = true; } });
-    if (fresh) { r = M.render(P, o); Object.keys(r.specs).forEach(function (k) { SPECS[k] = r.specs[k]; }); }
-    return r;
+    o.u = U(); o.mpp = mppOf(m || map); o.place = place || ui.place || {};
+    o.ratio = mapRatio(); o.dark = isDark();
+    return R.render(P, o);
   }
-  // Keeps a map's scanned-map layers in step with the project: adds, moves, fades and removes them under the data layers.
-  function syncImages(m, images) {
-    if (!m.getLayer('om-frame')) return;
-    var have = m.__omImgs || (m.__omImgs = {}), want = {};
-    images.forEach(function (im) {
-      if (!/^(data:|https:)/.test(im.img)) return;
-      var id = 'omi-' + im.id, key = im.img.indexOf('data:') === 0 ? imgKey(im.img) : im.img, cs = JSON.stringify(im.coords), src = m.getSource(id);
-      want[id] = 1;
-      if (src && (!have[id] || have[id].key !== key)) { if (m.getLayer(id)) m.removeLayer(id); m.removeSource(id); src = null; }
-      try {
-        if (!src) { m.addSource(id, { type: 'image', url: im.img, coordinates: im.coords }); m.addLayer({ id: id, type: 'raster', source: id, paint: { 'raster-opacity': im.o, 'raster-fade-duration': 0 } }, 'om-frame'); have[id] = { key: key, cs: cs, o: im.o }; }
-        else { if (have[id].cs !== cs) { src.setCoordinates(im.coords); have[id].cs = cs; } if (have[id].o !== im.o) { m.setPaintProperty(id, 'raster-opacity', im.o); have[id].o = im.o; } }
-      } catch (e) { /* a bad picture: the Check tab reports it */ }
-    });
-    Object.keys(have).forEach(function (id) { if (want[id]) return; if (m.getLayer(id)) m.removeLayer(id); if (m.getSource(id)) m.removeSource(id); delete have[id]; });
-  }
-  function addMissing(m, id, ratio, dark) {
-    if (m.hasImage(id)) return;
-    var im = getImage(id, ratio, dark); if (!im) return;
-    try { m.addImage(id, imageData(im), { pixelRatio: im.ratio }); } catch (e) { /* already added */ }
-  }
+  function syncImages(m, images) { R.syncImages(m, images); }
+  function addMissing(m, id, ratio, dark) { R.addMissing(m, id, ratio, dark); }
   var syncT = 0;
   function sync() {
     if (!mapReady) return;
     cancelAnimationFrame(syncT);
     syncT = requestAnimationFrame(function () {
       var src = map.getSource('om'); if (!src) return;
-      var r = computeRender(false); src.setData(r.fc); syncImages(map, r.images); editData(); drawOverlay(); timebar();
+      var r = computeRender(false), pl = placeAll(map, r);
+      if (JSON.stringify(pl) !== JSON.stringify(ui.place || {})) { ui.place = pl; r = computeRender(false); }
+      lastR = r; src.setData(r.fc); syncImages(map, r.images); editData(); drawOverlay(); timebar();
     });
   }
 
@@ -5901,7 +6139,7 @@ var MAPC = (function () {
     map.on('idle', function () { $('basebusy').hidden = true; });
     map.on('error', function (e) { if (e && e.error && /Failed to fetch|NetworkError|AJAXError/i.test(String(e.error.message || e.error))) { /* a tile failed; ignore */ } });
     map.on('move', function () { drawOverlay(); });
-    map.on('moveend', function () { var c = map.getCenter(); P.view = { center: [+c.lng.toFixed(6), +c.lat.toFixed(6)], zoom: +(map.getZoom() - Math.log2(frameW / M.REF_W)).toFixed(4), bearing: +map.getBearing().toFixed(2), pitch: +map.getPitch().toFixed(1) }; touch(); });
+    map.on('moveend', function () { if (!ui.drag) sync(); var c = map.getCenter(); P.view = { center: [+c.lng.toFixed(6), +c.lat.toFixed(6)], zoom: +(map.getZoom() - Math.log2(frameW / M.REF_W)).toFixed(4), bearing: +map.getBearing().toFixed(2), pitch: +map.getPitch().toFixed(1) }; touch(); });
     bindMap();
   }
   function fitFrame() {
@@ -5938,6 +6176,7 @@ var MAPC = (function () {
       } else if (f.kind === 'ring') { pt(f.coords[0], 'c', 0); pt(M.destination(f.coords[0], 90, f.radius), 'rad', 0); }
       else if (f.kind === 'image' && !f.style.locked) f.coords.forEach(function (c, i) { pt(c, 'v', i); });
     }
+    if (snapAt && (ui.draft || ui.drag || ui.tool !== 'select')) pt(snapAt, 'snap', 0);
     src.setData({ type: 'FeatureCollection', features: out });
   }
 
@@ -5969,7 +6208,7 @@ var MAPC = (function () {
     if (map) { if (t === 'select') map.doubleClickZoom.enable(); else map.doubleClickZoom.disable(); }
     if (mapReady) editData();
   }
-  var HINTS = { point: 'Click the map to place a marker.', symbol: 'Click the map to place a military symbol.', label: 'Click the map to place text.', line: 'Click to add points. Double-click or press Enter to finish.', arrow: 'Click along the path of the arrow, from tail to tip. Double-click or press Enter to finish.', area: 'Click to outline the area. Double-click or press Enter to finish.', ring: 'Click the center, then click again to set the radius. You can type an exact radius afterwards.' };
+  var HINTS = { point: 'Click the map to place a marker.', symbol: 'Click the map to place a military symbol.', label: 'Click the map to place text.', line: 'Click to add points; click the last point again, double-click or press Enter to finish. Points snap to nearby features (hold Alt to stop).', arrow: 'Click along the arrow\'s path from tail to tip; click the last point again or press Enter to finish.', area: 'Click around the area; click the first point to close it. Points snap to nearby features (hold Alt to stop).', ring: 'Click the center, then click again to set the radius. You can type an exact radius afterwards.' };
   function hint() {
     var h = $('hint'), t = ui.tool;
     if (t === 'select') { h.hidden = true; return; }
@@ -6055,7 +6294,7 @@ var MAPC = (function () {
   // ---------- pointer handling on the map ----------
   var HIT = ['om-point', 'om-label', 'om-line', 'om-line-dash', 'om-line-dot', 'om-head', 'om-outline', 'om-outline-dash', 'om-outline-dot', 'om-band', 'om-soft', 'om-fill', 'om-frame'];
   function hitAt(pt, layers, pad) {
-    pad = pad == null ? 5 : pad;
+    pad = pad == null ? 9 : pad;
     var have = (layers || HIT).filter(function (l) { return map.getLayer(l); }); if (!have.length) return null;
     var fs = map.queryRenderedFeatures([[pt.x - pad, pt.y - pad], [pt.x + pad, pt.y + pad]], { layers: have });
     // A locked scanned map is part of the background: clicks and drags on it go to the map.
@@ -6072,7 +6311,11 @@ var MAPC = (function () {
     map.on('mousemove', function (e) {
       readout(e);
       if (ui.drag) return dragMove(e);
-      if (ui.draft) { ui.draft.cursor = lngLat(e); editData(); if (ui.draft.kind === 'ring') hint(); return; }
+      if (ui.tool === 'line' || ui.tool === 'arrow' || ui.tool === 'area' || ui.tool === 'ring') {
+        var sn = snapTo(e, null); snapAt = sn.snapped ? sn.c : null;
+        if (ui.draft) { ui.draft.cursor = sn.c; editData(); if (ui.draft.kind === 'ring') hint(); } else editData();
+        return;
+      }
       if (ui.tool === 'select') { var h = hitAt(e.point, HIT.concat(['om-vtx', 'om-vtx-mid'])); fr.classList.toggle('hover', !!h); }
     });
     map.getCanvas().addEventListener('mouseleave', function () { readout(null); if (ui.draft) { ui.draft.cursor = null; editData(); } });
@@ -6086,15 +6329,17 @@ var MAPC = (function () {
       }
       if (t === 'point' || t === 'symbol' || t === 'label') return addFeature(newFeature(t, [c]));
       if (t === 'ring') {
-        if (!ui.draft) { ui.draft = { kind: 'ring', coords: [c], cursor: null }; editData(); hint(); return; }
+        if (!ui.draft) { ui.draft = { kind: 'ring', coords: [snapTo(e, null).c], cursor: null }; editData(); hint(); return; }
         var rk = M.dist(ui.draft.coords[0], c); var center = ui.draft.coords[0]; ui.draft = null;
         if (rk <= 0) { editData(); return; }
         return addFeature(newFeature('ring', [center], { radius: +rk.toPrecision(3) }));
       }
       if (!ui.draft) ui.draft = { kind: t, coords: [], cursor: null };
-      var d = ui.draft, prev = d.coords[d.coords.length - 1];
-      if (prev && map.project(prev).dist(e.point) < 3) return;
-      d.coords.push(c); editData(); hint();
+      var d = ui.draft, prev = d.coords[d.coords.length - 1], first = d.coords[0], sn = snapTo(e, null);
+      // Clicking the last point again finishes; clicking the first point of an area closes it.
+      if (prev && map.project(prev).dist(e.point) < 9) { if (d.coords.length >= (t === 'area' ? 3 : 2)) finishDraft(); return; }
+      if (t === 'area' && first && d.coords.length >= 3 && map.project(first).dist(e.point) < 11) { finishDraft(); return; }
+      d.coords.push(sn.c); editData(); hint();
     });
     map.on('dblclick', function (e) {
       if (ui.draft && ui.draft.kind !== 'ring') { e.preventDefault(); finishDraft(); return; }
@@ -6103,16 +6348,25 @@ var MAPC = (function () {
         if (v && f && f.kind !== 'image' && v.properties.r === 'v' && f.coords.length > (f.kind === 'area' ? 3 : 2)) { e.preventDefault(); commit(function () { f.coords.splice(v.properties.i, 1); }); sync(); renderSide(); }
       }
     });
+    // Pressing on a feature starts dragging it. Points, symbols, text and any label can be dragged straight away;
+    // lines, areas and scanned maps must be selected first, so a drag across them still moves the map.
     function down(e) {
-      if (ui.tool !== 'select' || !ui.sel || (e.originalEvent && e.originalEvent.button > 0)) return;
+      if (ui.tool !== 'select' || (e.originalEvent && e.originalEvent.button > 0)) return;
       if (e.points && e.points.length > 1) return;
-      var f = featOf(ui.sel); if (!f || (f.kind === 'image' && f.style.locked)) return;
-      var v = hitAt(e.point, ['om-vtx', 'om-vtx-mid'], 8), mode = null, idx = 0;
-      if (v) { mode = v.properties.r; idx = v.properties.i; }
-      else { var h = hitAt(e.point); if (h && h.properties.fid === f.id) mode = 'move'; }
+      var f = ui.sel && featOf(ui.sel), mode = null, idx = 0, newSel = false, v = f ? hitAt(e.point, ['om-vtx', 'om-vtx-mid'], 12) : null;
+      if (v && !(f.kind === 'image' && f.style.locked)) { mode = v.properties.r; idx = v.properties.i; }
+      else {
+        var h = hitAt(e.point), hf = h && featOf(h.properties.fid);
+        if (!hf || (hf.kind === 'image' && hf.style.locked)) return;
+        var isLabel = h.properties.g === 'label' && hf.kind !== 'label', quick = isLabel || hf.kind === 'point' || hf.kind === 'symbol' || hf.kind === 'label';
+        if (hf !== f && !quick) return;
+        if (hf !== f) { ui.sel = hf.id; ui.picker = false; newSel = true; f = hf; editData(); }
+        mode = isLabel ? 'label' : 'move';
+        if (isLabel && f.style.labelPos === 'auto' && h.properties.lpos) ui.lposFix = h.properties.lpos;
+      }
       if (!mode) return;
       e.preventDefault(); map.dragPan.disable();
-      ui.drag = { mode: mode, i: idx, start: lngLat(e), orig: JSON.parse(JSON.stringify(f.coords)), before: snapshot(), moved: false, f: f };
+      ui.drag = { mode: mode, i: idx, start: lngLat(e), pt: [e.point.x, e.point.y], dxy: [f.style.dx, f.style.dy], orig: JSON.parse(JSON.stringify(f.coords)), before: snapshot(), moved: false, f: f, newSel: newSel };
       if (mode === 'm') { f.coords.splice(idx + 1, 0, lngLat(e)); ui.drag.mode = 'v'; ui.drag.i = idx + 1; ui.drag.orig = JSON.parse(JSON.stringify(f.coords)); }
       fr.classList.add('dragging');
     }
@@ -6121,14 +6375,32 @@ var MAPC = (function () {
     function up() {
       var d = ui.drag; if (!d) return;
       ui.drag = null; map.dragPan.enable(); fr.classList.remove('dragging');
-      if (d.moved) { pushUndo(d.before); touch(); ui.justDragged = true; setTimeout(function () { ui.justDragged = false; }, 50); renderSide(); }
+      ui.lposFix = null; snapAt = null;
+      if (d.moved) { pushUndo(d.before); touch(); ui.justDragged = true; setTimeout(function () { ui.justDragged = false; }, 50); ui.tab = 'features'; renderSide(); }
       else if (d.mode === 'v' && d.f.coords.length !== d.orig.length) { /* inserted vertex without moving */ pushUndo(d.before); touch(); }
+      else if (d.newSel) { ui.tab = 'features'; renderSide(); scrollToEditor(); }
       sync();
     }
     map.on('mouseup', up); map.on('touchend', up); window.addEventListener('mouseup', up);
   }
+  var snapAt = null;
+  // The nearest point of another feature within 10 pixels, to join lines and borders exactly. Hold Alt to place freely.
+  function snapTo(e, skip) {
+    var raw = lngLat(e); if (!map || (e.originalEvent && e.originalEvent.altKey)) return { c: raw, snapped: false };
+    var best = null, bd = 10, own = ui.draft ? ui.draft.coords : [];
+    function test(c) { var p = map.project(c), dd = Math.hypot(p.x - e.point.x, p.y - e.point.y); if (dd < bd) { bd = dd; best = c; } }
+    M.shown(P).forEach(function (f) { if (f.id === skip || f.kind === 'image') return; f.coords.forEach(test); });
+    own.slice(0, 1).forEach(test);
+    return best ? { c: [best[0], best[1]], snapped: true } : { c: raw, snapped: false };
+  }
   function dragMove(e) {
     var d = ui.drag, f = d.f, c = lngLat(e); d.moved = true;
+    if (d.mode === 'label') {
+      if (ui.lposFix) { f.style.labelPos = ui.lposFix; ui.lposFix = null; }
+      f.style.dx = Math.round(d.dxy[0] + (e.point.x - d.pt[0]) / U()); f.style.dy = Math.round(d.dxy[1] + (e.point.y - d.pt[1]) / U());
+      var s0 = map.getSource('om'); if (s0) { var r0 = computeRender(false); lastR = r0; s0.setData(r0.fc); } drawOverlay(); return;
+    }
+    if (d.mode === 'v' && f.kind !== 'image') { var sn = snapTo(e, f.id); c = sn.c; snapAt = sn.snapped ? sn.c : null; }
     if (d.mode === 'v' && f.kind === 'image' && e.originalEvent && e.originalEvent.shiftKey) {
       // Shift-drag a corner: turn and scale the picture about the opposite corner, keeping its shape.
       var o = M.merc(d.orig[(d.i + 2) % 4]), p0 = M.merc(d.orig[d.i]), p1 = M.merc(c), v0 = [p0[0] - o[0], p0[1] - o[1]], v1 = [p1[0] - o[0], p1[1] - o[1]], n0 = v0[0] * v0[0] + v0[1] * v0[1];
@@ -6146,7 +6418,7 @@ var MAPC = (function () {
   }
   document.addEventListener('keydown', function (e) {
     var tag = (e.target.tagName || '').toLowerCase(), typing = tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable;
-    if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'z' || e.key === 'Z' || e.key === 'y')) { if (typing) return; e.preventDefault(); if (e.key === 'y' || e.shiftKey) redo(); else undo(); return; }
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'z' || e.key === 'Z' || e.key === 'y')) { if (typing) return; e.preventDefault(); if (ui.draft && !e.shiftKey && e.key !== 'y') { ui.draft.coords.pop(); if (!ui.draft.coords.length) cancelDraft(); else { editData(); hint(); } return; } if (e.key === 'y' || e.shiftKey) redo(); else undo(); return; }
     if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveMap(); return; }
     if (document.querySelector('.modal-back')) return;
     if (e.key === 'Escape') { if (ui.draft) cancelDraft(); else if (ui.tool !== 'select') setTool('select'); else if (ui.sel && !typing) { ui.sel = null; sync(); renderSide(); } return; }
@@ -6167,17 +6439,26 @@ var MAPC = (function () {
     ovT = requestAnimationFrame(function () {
       var c = $('overlay'), ctx = c.getContext('2d'); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, c.width, c.height);
       if (!map) return;
-      drawLayout(ctx, c.width, c.height, c.width / frameW, layoutInfo(map), 'full');
+      var info = layoutInfo(map, undefined, lastR); drawLayout(ctx, c.width, c.height, c.width / frameW, info, 'full'); lastPanels = info.panels;
     });
   }
   // What the layout needs to know about a map (the main one, or an export's). at: the map time to stamp, if not the project's.
-  function layoutInfo(m, at) {
+  // r: the render whose labels get leader lines when they have been dragged away from their features.
+  function layoutInfo(m, at, r) {
     m = m || map;
+    var leaders = [], u = U(), sl = u * P.layout.textScale, ss = u * P.layout.symbolScale;
+    ((r && r.labels) || []).forEach(function (lb) {
+      if (Math.hypot(lb.dx || 0, lb.dy || 0) < 14) return;
+      var p = m.project(lb.lp), e = [p.x + lb.off[0] * sl, p.y + lb.off[1] * sl], v = [e[0] - p.x, e[1] - p.y], n = Math.hypot(v[0], v[1]) || 1;
+      var rad = lb.ext ? Math.max(lb.ext.l, lb.ext.r, lb.ext.t, lb.ext.b) * ss * 0.8 + 2 : 3;
+      if (n <= rad + 4) return;
+      leaders.push([[p.x + v[0] / n * rad, p.y + v[1] / n * rad], e]);
+    });
     var ctr = m.getCenter(), nb = M.numbering(P), notes = nb.order.map(function (id, i) { var s = sourceOf(id); var empty = built(s.fields, '').empty || !shortPlain(s.fields).replace(/[\s.]/g, ''); return { n: i + 1, id: id, short: empty ? '[source not filled in yet]' : shortPlain(s.fields), full: empty ? '[source not filled in yet]' : fnPlain(s.fields, locsFor(id)) }; });
     var corners = [[0, 0], [frameW, 0], [frameW, frameH], [0, frameH]].map(function (p) { var ll = m.unproject(p); return [ll.lng, ll.lat]; });
     var t = at === undefined ? P.time.at : at, r = M.timeRange(P), stamp = '';
     if (P.time.stamp && P.time.mode !== 'all' && t != null && r) stamp = whenText(t, r);
-    return { mpp: M.metresPerPixel(ctr.lat, m.getZoom()), bearing: m.getBearing(), notes: notes, legend: M.legendItems(P, catName), attr: attribution(), dark: isDark(), corners: corners, center: [ctr.lng, ctr.lat], stamp: stamp };
+    return { mpp: M.metresPerPixel(ctr.lat, m.getZoom()), bearing: m.getBearing(), notes: notes, legend: M.legendItems(P, catName), attr: attribution(), dark: isDark(), corners: corners, center: [ctr.lng, ctr.lat], stamp: stamp, leaders: leaders, panels: [] };
   }
   function locsFor(id) { var o = []; M.shown(P).forEach(function (f) { f.cites.forEach(function (c) { var l = (c.loc || '').trim(); if (c.src === id && l && o.indexOf(l) < 0) o.push(l); }); }); return o.join('; '); }
   function wrap(ctx, text, maxW) {
@@ -6201,6 +6482,16 @@ var MAPC = (function () {
     var L = P.layout, u = W / 1000, ts = L.textScale, th = theme(), m = 18 * u, pad = 12 * u * Math.max(0.8, ts);
     ctx.save(); ctx.textBaseline = 'alphabetic';
     function font(wt, px, fam) { return wt + ' ' + px + 'px ' + (fam || FONT); }
+    // leader lines from features to labels dragged away from them
+    if (info.leaders && info.leaders.length) {
+      ctx.save(); ctx.lineCap = 'round';
+      info.leaders.forEach(function (ln) {
+        ctx.beginPath(); ctx.moveTo(ln[0][0] * k, ln[0][1] * k); ctx.lineTo(ln[1][0] * k, ln[1][1] * k);
+        ctx.strokeStyle = info.dark ? 'rgba(6,10,14,.7)' : 'rgba(255,255,255,.85)'; ctx.lineWidth = 3.2 * u; ctx.stroke();
+        ctx.strokeStyle = info.dark ? '#E9EEF2' : '#2A3138'; ctx.lineWidth = 1.2 * u; ctx.stroke();
+      });
+      ctx.restore();
+    }
     // bottom band: sources on the left, credit and attribution on the right
     var bandH = 0;
     if (kind === 'map') {
@@ -6221,7 +6512,7 @@ var MAPC = (function () {
     ctx.font = font(600, fsC); var creditLines = []; credit.forEach(function (c) { creditLines = creditLines.concat(wrap(ctx, c, left.length ? rightW : W * 0.6)); });
     var leftH = left.length * fsS * 1.32, rightH = creditLines.length * fsC * 1.3 + (creditLines.length ? 3 * u : 0) + attrLines.length * fsA * 1.3;
     bandH = Math.max(leftH, rightH) + pad * 1.5;
-    ctx.fillStyle = th.band; ctx.fillRect(0, H - bandH, W, bandH);
+    ctx.fillStyle = th.band; ctx.fillRect(0, H - bandH, W, bandH); info.panels.push([0, (H - bandH) / k, W / k, H / k]);
     ctx.fillStyle = th.ink; ctx.font = font(400, fsS); ctx.textAlign = 'left';
     left.forEach(function (l, i) { ctx.fillText(l, pad, H - bandH + pad * 0.75 + (i + 0.78) * fsS * 1.32); });
     var y = H - bandH + pad * 0.75; ctx.textAlign = 'right';
@@ -6241,7 +6532,7 @@ var MAPC = (function () {
       var top = cn.charAt(0) === 't', right = cn.charAt(1) === 'r', yy = top ? m : H - bandH - m;
       stacks[cn].forEach(function (blk) {
         var b = blk(true), x = right ? W - m - b.w : m, by = top ? yy : yy - b.h;
-        blk(false, x, by, b); yy = top ? by + b.h + 10 * u : by - 10 * u;
+        blk(false, x, by, b); info.panels.push([x / k, by / k, (x + b.w) / k, (by + b.h) / k]); yy = top ? by + b.h + 10 * u : by - 10 * u;
       });
     });
     function titleBlock(measure, x, y, b) {
@@ -6266,7 +6557,7 @@ var MAPC = (function () {
       if (measure) {
         ctx.font = font(500, lf); var lw = 0, rows = items.map(function (it) { var ls = wrap(ctx, it.label, maxW - sw - pad * 2); ls.forEach(function (l) { lw = Math.max(lw, ctx.measureText(l).width); }); return ls; });
         ctx.font = font(700, hf); var tw = L.legendTitle ? ctx.measureText(L.legendTitle.toUpperCase()).width * 1.1 : 0;
-        var symH = Math.max(rowH, 33 * u * Math.max(0.8, L.symbolScale));
+        var symH = Math.max(rowH, 38 * u * Math.max(0.8, L.symbolScale));
         var h = pad * 1.4 + (L.legendTitle ? hf * 1.9 : 0) + rows.reduce(function (s, r, i) { return s + Math.max(items[i].kind === 'symbol' ? symH : rowH, r.length * lf * 1.25 + 4 * u); }, 0);
         return { w: Math.max(tw, lw + sw + 8 * u) + pad * 2, h: h, rows: rows, lf: lf, hf: hf, rowH: rowH, sw: sw, symH: symH };
       }
@@ -6333,32 +6624,7 @@ var MAPC = (function () {
     ctx.restore();
   }
   function spaced(s) { return s.split('').join(String.fromCharCode(8202)); }
-  function drawSwatch(ctx, it, x, y, w, h, u, k) {
-    var cx = x + w / 2, cy = y + h / 2, col = it.color || '#2F6FDE';
-    ctx.save();
-    if (it.kind === 'point') { drawMarker(ctx, it.marker || 'circle', col, cx, it.marker === 'pin' ? cy + h * 0.32 : cy, Math.min(h * (it.marker === 'pin' ? 0.17 : 0.3), 9 * u), 1.6 * u); }
-    else if (it.kind === 'symbol') {
-      var bare = { mono: it.sym && it.sym.mono }, key = 'mil-legend-' + it.sidc + (bare.mono ? 'm' : ''); SPECS[key] = { t: 'mil', sidc: it.sidc, sym: bare, size: 1 };
-      var im = getImage(key, Math.max(2, Math.ceil(k)), P.layout.theme !== 'light');
-      if (im) { var sc = Math.min((w * 1.05) / im.w, (h * 0.95) / im.h) ; ctx.drawImage(im.canvas, cx - (im.w * sc) / 2, cy - (im.h * sc) / 2, im.w * sc, im.h * sc); }
-    } else if (it.kind === 'line') {
-      ctx.strokeStyle = col; ctx.lineWidth = 3 * u; ctx.lineCap = 'round';
-      if (it.dash === 'dash') ctx.setLineDash([7 * u, 4.5 * u]); else if (it.dash === 'dot') { ctx.setLineDash([0.1, 5 * u]); ctx.lineWidth = 3.4 * u; }
-      ctx.beginPath(); ctx.moveTo(x + 2 * u, cy); ctx.lineTo(x + w - 2 * u, cy); ctx.stroke();
-    } else if (it.kind === 'arrow') {
-      ctx.fillStyle = col; ctx.beginPath(); var t = h * 0.14;
-      var aw = w * 0.86; ctx.moveTo(x + 1 * u, cy - t * 0.7); ctx.lineTo(x + aw * 0.6, cy - t); ctx.lineTo(x + aw * 0.6, cy - t * 2.2); ctx.lineTo(x + aw, cy); ctx.lineTo(x + aw * 0.6, cy + t * 2.2); ctx.lineTo(x + aw * 0.6, cy + t); ctx.lineTo(x + 1 * u, cy + t * 0.7); ctx.closePath(); ctx.fill();
-    } else if (it.kind === 'area' || it.kind === 'ring') {
-      var rx = x + 2 * u, ry = cy - h * 0.3, rw = w - 4 * u, rh = h * 0.6, cc = M.parseColor(col) || [47, 111, 222, 1];
-      ctx.beginPath(); if (it.kind === 'ring') ctx.ellipse(cx, cy, rw / 2, rh / 2, 0, 0, Math.PI * 2); else ctx.rect(rx, ry, rw, rh);
-      ctx.fillStyle = 'rgba(' + cc[0] + ',' + cc[1] + ',' + cc[2] + ',' + Math.max(0.15, it.fill == null ? 0.25 : it.fill) + ')'; ctx.fill();
-      if (it.hatch) { var hk = 'hatch-legend-' + col; SPECS[hk] = { t: 'hatch', color: col }; var hi = getImage(hk, 2, false); if (hi) { ctx.save(); ctx.clip(); var pat = ctx.createPattern(hi.canvas, 'repeat'); ctx.fillStyle = pat; ctx.fillRect(rx, ry, rw, rh); ctx.restore(); } }
-      if (it.edge === 'soft') { ctx.save(); ctx.clip(); ctx.shadowColor = col; ctx.shadowBlur = 5 * u; ctx.strokeStyle = col; ctx.lineWidth = 3 * u; ctx.stroke(); ctx.restore(); }
-      else if (it.edge === 'band') { ctx.save(); ctx.clip(); ctx.globalAlpha = 0.5; ctx.strokeStyle = col; ctx.lineWidth = 8 * u; ctx.stroke(); ctx.restore(); ctx.strokeStyle = col; ctx.lineWidth = 1 * u; ctx.stroke(); }
-      else { ctx.strokeStyle = col; ctx.lineWidth = 1.8 * u; if (it.dash === 'dash') ctx.setLineDash([5 * u, 3 * u]); else if (it.dash === 'dot') ctx.setLineDash([1 * u, 3 * u]); ctx.stroke(); }
-    } else if (it.kind === 'label') { ctx.fillStyle = col; ctx.font = '700 ' + (h * 0.5) + 'px ' + FONT; ctx.textAlign = 'center'; ctx.fillText('Aa', cx, cy + h * 0.17); }
-    ctx.restore();
-  }
+  function drawSwatch(ctx, it, x, y, w, h, u, k) { R.drawSwatch(ctx, it, x, y, w, h, u, k, P.layout.theme !== 'light'); }
 
   // ---------- side panel ----------
   var TABS = [['features', 'Features'], ['layers', 'Layers'], ['sources', 'Sources'], ['base', 'Basemap'], ['layout', 'Layout'], ['views', 'Views & video'], ['check', 'Check']];
@@ -6428,7 +6694,7 @@ var MAPC = (function () {
     if (k === 'point') h.push(field('Shape', sel('style.marker', M.MARKERS, s.marker)) + field('Color', swatchRow('style.color', s.color, layerOf(f.layer).color)) + field('Size', rng('style.size', s.size, 0.4, 3, 0.1)));
     if (k === 'label') h.push(field('Color', swatchRow('style.color', s.color, layerOf(f.layer).color)) + '<div class="fgrid">' + field('Style', sel('style.labelStyle', [['halo', 'Halo'], ['box', 'Boxed'], ['plain', 'Plain'], ['region', 'Region (spaced capitals in its color)']], s.labelStyle)) + field('Size', rng('style.labelSize', s.labelSize, 0.5, 4, 0.1)) + '</div>');
     if (k === 'line') h.push(field('Color', swatchRow('style.color', s.color, layerOf(f.layer).color)) + '<div class="fgrid">' + field('Width', rng('style.width', s.width, 0.5, 14, 0.5)) + field('Line', sel('style.dash', M.DASHES, s.dash)) + field('Arrowheads', sel('style.heads', [['none', 'None'], ['end', 'At the end'], ['both', 'Both ends']], s.heads)) + '</div>' + chk('style.smooth', s.smooth, 'Smooth into a curve'));
-    if (k === 'arrow') h.push(field('Color', swatchRow('style.color', s.color, layerOf(f.layer).color)) + '<div class="fgrid">' + field('Width (km)', num('style.width', s.width, 'any', 0.05), 'Shaft width at the head, on the ground.') + field('Opacity', rng('style.fill', s.fill, 0.1, 1, 0.05)) + '</div><div class="row">' + chk('style.smooth', s.smooth, 'Smooth into a curve') + chk('style.hatch', s.hatch, 'Hatched') + chk('style.outline', s.outline, 'Outline') + '</div>');
+    if (k === 'arrow') h.push(field('Color', swatchRow('style.color', s.color, layerOf(f.layer).color)) + '<div class="fgrid">' + field('Width (km)', num('style.width', s.width, 'any', 0.05), 'Shaft width at the head, on the ground.') + field('Opacity', rng('style.fill', s.fill, 0.1, 1, 0.05)) + '</div><div class="row">' + chk('style.smooth', s.smooth, 'Smooth into a curve') + chk('style.hatch', s.hatch, 'Hatched') + chk('style.outline', s.outline, 'Outline') + chk('style.shadow', s.shadow, 'Shadow') + '</div>');
     if (k === 'area' || k === 'ring') h.push(field('Color', swatchRow('style.color', s.color, layerOf(f.layer).color)) + '<div class="fgrid">' + field('Fill', rng('style.fill', s.fill, 0, 1, 0.05)) + field('Edge width', rng('style.width', s.width, 0, 10, 0.5)) + field('Edge', sel('style.dash', M.DASHES, s.dash)) + field('Edge look', sel('style.edge', M.EDGES, s.edge)) + '</div>' + chk('style.hatch', s.hatch, 'Hatched (for contested or claimed ground)'));
     if (k === 'image') h.push(imageAppearance(f));
     h.push('</fieldset>');
@@ -6440,7 +6706,7 @@ var MAPC = (function () {
     else h.push(field('Points, one per line', '<textarea class="mono" data-coords="1" rows="' + Math.min(8, f.coords.length + 1) + '">' + esc(coordsText(f)) + '</textarea>', (k === 'area' ? 'Outline' : 'Length') + ': ' + (k === 'area' ? M.lengthKm(f.coords.concat([f.coords[0]])) : M.lengthKm(f.coords)).toFixed(1) + ' km. On the map, drag a point to move it, drag a small dot to add one, double-click a point to remove it.'));
     h.push('<div id="coordErr" class="checks"></div></fieldset>');
     // label placement
-    if (k !== 'label') h.push('<details class="more"' + (ui.openLabel ? ' open' : '') + ' id="labelMore"><summary>Label placement</summary><div class="fgrid">' + field('Position', sel('style.labelPos', [['auto', 'Automatic'], ['right', 'Right'], ['left', 'Left'], ['top', 'Above'], ['bottom', 'Below'], ['center', 'Centered'], ['none', 'Hidden (kept for the list and search)']], s.labelPos)) + field('Style', sel('style.labelStyle', [['halo', 'Halo'], ['box', 'Boxed'], ['plain', 'Plain'], ['region', 'Region (spaced capitals in its color)']], s.labelStyle)) + field('Size', rng('style.labelSize', s.labelSize, 0.5, 3, 0.1)) + field('Nudge across', num('style.dx', s.dx, 1)) + field('Nudge down', num('style.dy', s.dy, 1)) + '</div>' + chk('style.marks', s.marks, 'Show its footnote numbers by the label') + '</details>');
+    if (k !== 'label') h.push('<details class="more"' + (ui.openLabel ? ' open' : '') + ' id="labelMore"><summary>Label placement</summary><div class="fgrid">' + field('Position', sel('style.labelPos', [['auto', 'Automatic (keeps clear of other labels)'], ['right', 'Right'], ['left', 'Left'], ['top', 'Above'], ['bottom', 'Below'], ['tr', 'Above right'], ['br', 'Below right'], ['tl', 'Above left'], ['bl', 'Below left'], ['center', 'Centered'], ['none', 'Hidden (kept for the list and search)']], s.labelPos)) + field('Style', sel('style.labelStyle', [['halo', 'Halo'], ['box', 'Boxed'], ['plain', 'Plain'], ['region', 'Region (spaced capitals in its color)']], s.labelStyle)) + field('Size', rng('style.labelSize', s.labelSize, 0.5, 3, 0.1)) + field('Nudge across', num('style.dx', s.dx, 1)) + field('Nudge down', num('style.dy', s.dy, 1)) + '</div>' + chk('style.marks', s.marks, 'Show its footnote numbers by the label') + '<p class="hint">Or drag the label on the map. A label dragged away from its feature gets a leader line.</p><div class="row"><button class="btn small" data-fa="labelReset"' + (s.dx || s.dy || s.labelPos !== 'auto' ? '' : ' disabled') + '>Put the label back</button></div></details>');
     // sources
     h.push('<fieldset><legend>Sources</legend>' + (f.cites.length ? '' : '<p class="hint">' + (k === 'label' ? 'Text that only names a place may not need a source.' : 'Every plotted place needs a source.') + '</p>'));
     f.cites.forEach(function (c, i) {
@@ -6565,6 +6831,7 @@ var MAPC = (function () {
     if (!f) return;
     if (a === 'zoom') zoomTo(f);
     if (a === 'del') deleteFeature(f.id);
+    if (a === 'labelReset') { commit(function () { f.style.dx = 0; f.style.dy = 0; f.style.labelPos = 'auto'; }); sync(); return featureEditor(f); }
     if (a === 'imgReplace') return addImageDialog(f);
     if (a === 'imgRect') { commit(function () { f.coords = squareUp(f.coords); }); sync(); return featureEditor(f); }
     if (a === 'imgFit') { var asp = imgAspect(f); commit(function () { f.coords = fitCorners(asp); }); sync(); return featureEditor(f); }
@@ -7179,8 +7446,8 @@ var MAPC = (function () {
           var ctx = out.getContext('2d');
           if (kind !== 'overlay' && kind !== 'full' && false) ctx.fillStyle = '#000';
           ctx.drawImage(src, 0, 0, W, H);
-          if (kind === 'full') drawLayout(ctx, W, H, k, layoutInfo(em), 'full');
-          else if (kind === 'map') drawLayout(ctx, W, H, k, layoutInfo(em), 'map');
+          if (kind === 'full') drawLayout(ctx, W, H, k, layoutInfo(em, undefined, rr), 'full');
+          else if (kind === 'map') drawLayout(ctx, W, H, k, layoutInfo(em, undefined, rr), 'map');
           em.remove(); host.innerHTML = ''; resolve(out);
         } catch (e) { try { em.remove(); } catch (x) { /* gone */ } host.innerHTML = ''; reject(e); }
       }
@@ -7235,7 +7502,12 @@ var MAPC = (function () {
       var first = plan.at(0), lastSig = null, at0 = first.time === undefined ? P.time.at : first.time;
       var timed = M.timeRange(P) && (plan.timeOnly || P.views.some(function (v) { return v.at != null; })) ? true : P.time.mode !== 'all';
       var modeNow = P.time.mode === 'all' && timed ? 'upto' : P.time.mode, saved = { mode: P.time.mode, at: P.time.at };
-      function rAt(t) { P.time.mode = modeNow; var r = computeRender(true, timed ? t : undefined); P.time.mode = saved.mode; return r; }
+      // The render for a frame: the frame's time, and labels and arrowheads fitted to the export map's camera.
+      function rAt(t, m) {
+        P.time.mode = modeNow; var tt = timed ? t : undefined, r = computeRender(true, tt, m), pl = m ? placeAll(m, r) : null;
+        if (pl && JSON.stringify(pl) !== JSON.stringify(ui.place || {})) r = computeRender(true, tt, m, pl);
+        P.time.mode = saved.mode; return r;
+      }
       function fcAt(t) { return rAt(t).fc; }
       var style = withData(baseStyle, fcAt(at0), U(), true);
       var em = new ML.Map({ container: div, style: style, center: first.center, zoom: zoomFor(first.zoom, frameW), bearing: first.bearing, pitch: first.pitch, pixelRatio: k, interactive: false, attributionControl: false, fadeDuration: 0, maxCanvasSize: [16384, 16384], canvasContextAttributes: { preserveDrawingBuffer: true, antialias: true } });
@@ -7245,7 +7517,7 @@ var MAPC = (function () {
       function settled() { return new Promise(function (res) { var done = false, to = setTimeout(fin, 8000); function fin() { if (done) return; done = true; clearTimeout(to); res(); } em.once('idle', fin); em.triggerRepaint(); }); }
       function sigOf(t) { return timed ? M.atTime(Object.assign({}, P, { time: Object.assign({}, P.time, { mode: modeNow }) }), t).map(function (f) { return f.id; }).join(',') : 'all'; }
       function cleanup() { try { em.remove(); } catch (e) { /* gone */ } host.innerHTML = ''; P.time.mode = saved.mode; P.time.at = saved.at; }
-      var lastCam = '';
+      var lastCam = '', frameR = null;
       return new Promise(function (res) { em.once('load', res); }).then(function () { syncImages(em, rAt(at0).images); }).then(settled).then(function () {
         var i = 0;
         function frame() {
@@ -7253,14 +7525,14 @@ var MAPC = (function () {
           if (encErr) { cleanup(); throw encErr; }
           if (i >= n) return enc.flush().then(function () { muxer.finalize(); cleanup(); return { blob: new Blob([muxer.target.buffer], { type: pick.kind === 'mp4' ? 'video/mp4' : 'video/webm' }), ext: pick.kind }; });
           var cam = plan.at(i / fps), t = cam.time === undefined ? P.time.at : cam.time, changed = false;
-          var sig = sigOf(t); if (sig !== lastSig) { var rt = rAt(t); em.getSource('om').setData(rt.fc); syncImages(em, rt.images); lastSig = sig; changed = true; }
-          var camKey = [cam.center[0].toFixed(7), cam.center[1].toFixed(7), cam.zoom.toFixed(5), (cam.bearing || 0).toFixed(3), (cam.pitch || 0).toFixed(3)].join(',');
+          var sig = sigOf(t), camKey = [cam.center[0].toFixed(7), cam.center[1].toFixed(7), cam.zoom.toFixed(5), (cam.bearing || 0).toFixed(3), (cam.pitch || 0).toFixed(3)].join(',');
           if (camKey !== lastCam) { em.jumpTo({ center: cam.center, zoom: zoomFor(cam.zoom, frameW), bearing: cam.bearing || 0, pitch: cam.pitch || 0 }); lastCam = camKey; changed = true; }
+          if (sig !== lastSig || changed) { frameR = rAt(t, em); em.getSource('om').setData(frameR.fc); syncImages(em, frameR.images); lastSig = sig; changed = true; }
           var ready = changed || i === 0 ? settled() : Promise.resolve(false);
           return ready.then(function (redraw) {
             if (redraw !== false || i === 0) {
               ctx.clearRect(0, 0, W, H); ctx.drawImage(em.getCanvas(), 0, 0, W, H);
-              P.time.mode = modeNow; drawLayout(ctx, W, H, k, layoutInfo(em, timed ? t : undefined), P.video.overlay ? 'full' : 'map'); P.time.mode = saved.mode;
+              P.time.mode = modeNow; drawLayout(ctx, W, H, k, layoutInfo(em, timed ? t : undefined, frameR), P.video.overlay ? 'full' : 'map'); P.time.mode = saved.mode;
             }
             var vf = new VideoFrame(out, { timestamp: Math.round(i * 1e6 / fps), duration: Math.round(1e6 / fps) });
             enc.encode(vf, { keyFrame: i % (fps * 2) === 0 }); vf.close();
@@ -7276,7 +7548,7 @@ var MAPC = (function () {
   // ---------- boot ----------
   renderTools(); undoButtons(); status(); isDarkCache = isDark(); restoreImgs();
   fitFrame(); setBase(true); renderSide();
-  window.OSINT_MAP = { project: function () { return P; }, map: function () { return map; }, renderImage: renderImage, renderVideo: renderVideo, plan: function () { return videoPlanNow(); }, load: function (raw) { openProject(raw); }, handleText: handleText };
+  window.OSINT_MAP = { project: function () { return P; }, state: function () { return { tool: ui.tool, sel: ui.sel, draft: ui.draft && ui.draft.coords.length }; }, debug: function () { var r = computeRender(false); return { trace: (placeAll.last || []).map(function (it) { return [it.id, it.pt.map(Math.round), it.cands.map(function (c) { return c.pos + ':' + c.cost + ':' + c.box.map(Math.round).join('/'); })]; }), place: ui.place, frame: [frameW, frameH], labels: r.labels.map(function (l) { var p = map.project(l.lp); return [l.fid, l.pos, Math.round(p.x), Math.round(p.y), l.movable]; }), icons: r.icons.map(function (ic) { var p = map.project(ic.lp); return [ic.fid, Math.round(p.x), Math.round(p.y)]; }) }; }, map: function () { return map; }, renderImage: renderImage, renderVideo: renderVideo, plan: function () { return videoPlanNow(); }, load: function (raw) { openProject(raw); }, handleText: handleText };
 })();
 </script>
 </body>

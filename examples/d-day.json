@@ -272,7 +272,7 @@
    "note": "Placed by the map maker at the general position the source describes; the source gives no coordinates.",
    "style": {
     "size": 1,
-    "labelPos": "bottom"
+    "labelPos": "auto"
    },
    "sym": {
     "tpl": "S*G*UCI--------",
@@ -312,7 +312,7 @@
    "note": "Placed by the map maker at the general position the source describes; the source gives no coordinates.",
    "style": {
     "size": 1,
-    "labelPos": "bottom"
+    "labelPos": "auto"
    },
    "sym": {
     "tpl": "S*G*UCI--------",
@@ -346,7 +346,7 @@
    "note": "Placed by the map maker at the general position the source describes; the source gives no coordinates.",
    "style": {
     "size": 1,
-    "labelPos": "bottom"
+    "labelPos": "auto"
    },
    "sym": {
     "tpl": "S*G*UCI--------",
@@ -380,7 +380,7 @@
    "note": "Placed by the map maker at the general position the source describes; the source gives no coordinates.",
    "style": {
     "size": 1,
-    "labelPos": "bottom"
+    "labelPos": "auto"
    },
    "sym": {
     "tpl": "S*G*UCI--------",
@@ -414,7 +414,7 @@
    "note": "Placed by the map maker at the general position the source describes; the source gives no coordinates.",
    "style": {
     "size": 1,
-    "labelPos": "bottom"
+    "labelPos": "auto"
    },
    "sym": {
     "tpl": "S*G*UCI--------",
@@ -454,7 +454,7 @@
    "note": "Placed by the map maker at the general position the source describes; the source gives no coordinates.",
    "style": {
     "size": 1,
-    "labelPos": "bottom"
+    "labelPos": "auto"
    },
    "sym": {
     "tpl": "S*G*UCI--------",
@@ -488,7 +488,7 @@
    "note": "Placed by the map maker at the general position the source describes; the source gives no coordinates.",
    "style": {
     "size": 1,
-    "labelPos": "bottom"
+    "labelPos": "auto"
    },
    "sym": {
     "tpl": "S*G*UCIA-------",
@@ -522,7 +522,7 @@
    "note": "Placed by the map maker at the general position the source describes; the source gives no coordinates.",
    "style": {
     "size": 1,
-    "labelPos": "bottom"
+    "labelPos": "auto"
    },
    "sym": {
     "tpl": "S*G*UCIA-------",
@@ -556,7 +556,7 @@
    "note": "Placed by the map maker at the general position the source describes; the source gives no coordinates.",
    "style": {
     "size": 1,
-    "labelPos": "bottom"
+    "labelPos": "auto"
    },
    "sym": {
     "tpl": "S*G*UCIA-------",
@@ -590,7 +590,7 @@
    "note": "Placed by the map maker at the general position the source describes; the source gives no coordinates.",
    "style": {
     "size": 1,
-    "labelPos": "bottom"
+    "labelPos": "auto"
    },
    "sym": {
     "tpl": "S*G*UCI--------",
@@ -624,7 +624,7 @@
    "note": "Placed by the map maker at the general position the source describes; the source gives no coordinates.",
    "style": {
     "size": 1,
-    "labelPos": "bottom"
+    "labelPos": "auto"
    },
    "sym": {
     "tpl": "S*G*UCI--------",
@@ -664,7 +664,7 @@
    "note": "Placed by the map maker at the general position the source describes; the source gives no coordinates.",
    "style": {
     "size": 1,
-    "labelPos": "bottom"
+    "labelPos": "auto"
    },
    "sym": {
     "tpl": "S*G*UCI--------",

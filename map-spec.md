@@ -57,7 +57,7 @@ The values above are placeholders that show the form. Leave out anything you do 
 | `ring` | A range ring | `radius` in kilometres; `style.fill`; `style.dash` |
 | `image` | A scanned map | four `coords`: top left, top right, bottom right, bottom left; `img`: an `https://` link to the picture; `style.opacity` |
 
-Every feature has `id`, `kind`, `layer` (the `id` of a layer), `coords`, and optionally `label`, `date`, `end`, `desc`, `note`, `cites`, and `style.color` (a hex color; leave it out to use the layer's). `label` can hold a line break (`\n`). `style.labelPos` is `auto`, `right`, `left`, `top`, `bottom` or `center`.
+Every feature has `id`, `kind`, `layer` (the `id` of a layer), `coords`, and optionally `label`, `date`, `end`, `desc`, `note`, `cites`, and `style.color` (a hex color; leave it out to use the layer's). `label` can hold a line break (`\n`). `style.labelPos` is `auto` (the default: the tool picks the side that keeps clear of other things), `right`, `left`, `top`, `bottom`, `tr`, `br`, `tl`, `bl`, `center` or `none`. Leave it on `auto` unless the person asks for a side.
 
 ## Military symbols
 

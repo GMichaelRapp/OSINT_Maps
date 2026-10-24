@@ -2,6 +2,14 @@
 
 Changes to the OSINT Map Builder, newest first.
 
+## 2.2 — 23 October 2026
+
+- **Editing:** press and drag markers, symbols, text and labels without selecting them first; bigger handles and hit areas; points snap to points already on the map while drawing (Alt to stop); click the last point to finish a line, the first to close an area; Ctrl+Z takes back the last point while drawing.
+- **Labels:** placed automatically to keep clear of symbols, arrows, lines, the title and key, the frame's edge and each other, and re-placed as the camera moves, in video too. Labels can be dragged anywhere, with a leader line when far from their feature, and put back with one click. Diagonal positions added.
+- **Arrows:** swept arrowheads with an outline and a soft shadow; lines stop short of their arrowheads instead of poking through.
+- **Symbols and key:** text fields around symbols get a halo; the key names the echelon ("Hostile armor, division") and shows the symbol without echelon marks, so two sizes of the same unit no longer look alike; basemap labels hide under symbols instead of running through them.
+- The map engine is now shared with the OSINT Dashboard Builder, which shows Map Builder maps as panels.
+
 ## 2.1 — 23 October 2026
 
 - **Scanned maps:** add an old map from a file or a link and stretch it onto the ground by dragging its corners (Shift-drag to turn and scale it), with opacity, locking, dates and a draft archival source to fill in. Scans are saved inside map files and kept in the browser, and appear in image and video exports.

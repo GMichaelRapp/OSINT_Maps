@@ -2,7 +2,7 @@
 
 A tool for making sourced maps that hold up in a Substack post or a video: real basemaps, military symbols, arrows, areas and range rings, with every feature cited in the form set out by the [OSINT Style Guide](https://gmichaelrapp.github.io/OSINT_Cites/). Footnote numbers sit beside the labels, and the matching footnotes go into your post, so a reader can follow any symbol on the map back to the page that put it there.
 
-It is one web page. There is nothing to install, no account, and no server. It is a sibling of the [OSINT Timeline Builder](https://github.com/gmichaelrapp/OSINT_Timelines) and the [OSINT Dashboard Builder](https://github.com/gmichaelrapp/OSINT_Dashboards): all three use the Citation Generator's source fields and footnote formatter.
+It is one web page. There is nothing to install, no account, and no server. It is a sibling of the [OSINT Timeline Builder](https://github.com/gmichaelrapp/OSINT_Timelines) and the [OSINT Dashboard Builder](https://github.com/gmichaelrapp/OSINT_Dashboards): all three use the Citation Generator's source fields and footnote formatter. A map saved here opens in the Dashboard Builder as a zoomable panel, with its key and numbered citations.
 
 ## What it makes
 
@@ -43,7 +43,9 @@ Open `index.html` in any current browser, or use the hosted copy linked in this 
 
 1. **Frame the map.** Under **Layout**, choose what it is for: a Substack post (16:9, 4:3 or 4:5), a 1080p or 4K video frame, a vertical short, a square, or a custom size. The frame on screen is the image you will get.
 2. **Choose the look** under **Basemap**. **Find a place** searches OpenStreetMap's Nominatim; **Go to coordinates** takes decimal degrees, degrees-minutes-seconds or MGRS.
-3. **Add features** with the tools beside the map. Click to place; for lines, arrows and areas, click each point and double-click or press Enter to finish. Drag a feature to move it. Drag a point of a line or area to reshape it, drag the small dot between two points to add one, and double-click a point to remove it. **Add at coordinates** places features from typed coordinates, one per line.
+3. **Add features** with the tools beside the map. Click to place. For lines, arrows and areas, click each point; click the last point again (or double-click, or press Enter) to finish, and click the first point to close an area. Ctrl+Z (Cmd+Z) takes back the last point while drawing. New points snap to points already on the map; hold Alt to place freely.
+   Press on a marker, symbol or text and drag to move it, without selecting it first. Lines, areas and scans move once selected, so dragging across them still pans the map. Drag a point of a line or area to reshape it, drag the small dot between two points to add one, and double-click a point to remove it. **Add at coordinates** places features from typed coordinates, one per line.
+   Labels place themselves: on **Automatic** (the default) each label picks the side of its feature that keeps clear of symbols, arrows, lines, the title and key, the frame's edge and other labels, and moves as you pan and zoom. Drag a label to put it anywhere; a thin leader line joins it to its feature when it is far away. **Put the label back** returns it to Automatic.
 4. **Cite everything.** Add sources under **Sources**, with the same fields as the Citation Generator, then cite them from each feature with the page or timestamp and, if you like, the passage. Each feature also has a box for how its location was established: a place you worked out yourself is a judgment, not source data, and the Style Guide asks you to say how you got it.
 5. **Check** lists everything unsourced and every check the Citation Generator would raise on a source.
 6. **Export image.** Three kinds:
