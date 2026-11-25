@@ -4,6 +4,25 @@ A tool for making sourced maps that hold up in a Substack post or a video: real 
 
 It is one web page. There is nothing to install, no account, and no server. It is a sibling of the [OSINT Timeline Builder](https://github.com/gmichaelrapp/OSINT_Timelines) and the [OSINT Dashboard Builder](https://github.com/gmichaelrapp/OSINT_Dashboards): all three use the Citation Generator's source fields and footnote formatter. A map saved here opens in the Dashboard Builder as a zoomable panel, with its key and numbered citations.
 
+**Open it:** [zerohistory.net/tools/maps](https://zerohistory.net/tools/maps/), or the copy on [GitHub Pages](https://gmichaelrapp.github.io/OSINT_Maps/). Published by [Zero History](https://zerohistory.net/), a publisher of free, open-source research and writing tools.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-dark.png">
+  <img src="docs/screenshot.png" width="1440" height="900" alt="The OSINT Map Builder">
+</picture>
+
+## Quick start
+
+1. **Frame the map.** Pick a size under **Layout**: a Substack post, a 1080p or 4K video frame, a vertical short. What you see inside the frame is what exports.
+2. **Add features.** Use the tools down the side of the map for markers, military symbols, text, lines, arrows, areas and range rings, or bring in a CSV or GeoJSON file from **File**.
+3. **Cite your sources.** Under **Sources**, add each source with the Citation Generator’s fields, then cite it from each feature. Footnote numbers appear beside the labels.
+4. **Add time and views.** Give features dates to play them on the time bar; save camera positions under **Views & video** to fly between them.
+5. **Export.** **Export image** gives a PNG or JPEG; **Export video** an MP4 or WebM. **Copy footnotes for your post** gives the notes to paste under it. **Save map (.json)** keeps your working copy.
+
+**File → How it works** has the longer guide. The example map is *D-Day: The Normandy Landings*.
+
+In the app, press the version number beside the name for this quick start, what’s new in each version, and where the tool comes from. It opens by itself the first time you visit, and once after each update.
+
 ## What it makes
 
 | Feature | Tool | Use it for |
@@ -39,7 +58,7 @@ Any basemap can be toned (Muted, Dark ops, Night blue, Paper, Grayscale) so your
 
 ## Using it
 
-Open `index.html` in any current browser, or use the hosted copy linked in this repository's About box. It opens on the D-Day example, which has five saved views for trying the video export.
+Open `index.html` in any current browser, or use the hosted copy linked at the top of this page. It opens on the D-Day example, which has five saved views for trying the video export.
 
 1. **Frame the map.** Under **Layout**, choose what it is for: a Substack post (16:9, 4:3 or 4:5), a 1080p or 4K video frame, a vertical short, a square, or a custom size. The frame on screen is the image you will get.
 2. **Choose the look** under **Basemap**. **Find a place** searches OpenStreetMap's Nominatim; **Go to coordinates** takes decimal degrees, degrees-minutes-seconds or MGRS.
@@ -177,6 +196,10 @@ The tool will be at `https://<your-username>.github.io/<repository>/`.
 ## Your data
 
 Your map stays in your browser. The page asks other sites only for the basemap you choose (map tiles, fonts and icons from OpenFreeMap, or your own style's provider), for the relief, hillshade or imagery you turn on, and for place searches, which go to Nominatim one search at a time. Adding historical borders downloads the snapshot you choose from jsDelivr (or GitHub if that fails), and a linked scan loads from its site. The Plain outline basemap needs no connection at all.
+
+## The About box
+
+The version button and the box it opens (quick start, what’s new, about) are shared with Zero History’s other tools. In `index.html`, `<style id="zh-about-css">` and `<script id="zh-about">` hold the shared code, refreshed from [`tools/about/`](https://github.com/gmichaelrapp/zerohistory/tree/main/tools/about) in the zerohistory repository; `<script id="zh-about-cfg">` holds this tool’s own words. When you release, raise the version there, add the release to its `news` (keep the last three), and add it to `CHANGELOG.md`. The box never appears in published pages.
 
 ## Tests
 
